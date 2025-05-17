@@ -255,7 +255,8 @@ module aptos_sybil_shield::feature_extraction {
         
         while (i < len) {
             let feature = vector::borrow(&feature_data.features, i);
-            vector::push_back(&mut result, feature.feature_type);
+            // Cast u8 to u64 to match the expected type for vector<u64>
+            vector::push_back(&mut result, (feature.feature_type as u64));
             vector::push_back(&mut result, feature.value);
             i = i + 1;
         };

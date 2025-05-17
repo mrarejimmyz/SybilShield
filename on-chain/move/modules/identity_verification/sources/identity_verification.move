@@ -382,9 +382,10 @@ module aptos_sybil_shield::identity_verification {
         let verification = borrow_global<IdentityVerification>(addr);
         let current_time = timestamp::now_seconds();
         
-        // Check if expired
+        // Check if verification has expired
         if (verification.status == STATUS_VERIFIED && 
-            verification.expiration != 0 && current_time > verification.expiration) {
+            verification.expiration != 0 && 
+            current_time > verification.expiration) {
             return STATUS_EXPIRED
         };
         
@@ -392,42 +393,13 @@ module aptos_sybil_shield::identity_verification {
     }
     
     #[view]
-    public fun get_verification_type(addr: address): u8 acquires IdentityVerification {
+    public fun get_verification_expiration(addr: address): u64 acquires IdentityVerification {
         if (!exists<IdentityVerification>(addr)) {
             return 0
         };
         
         let verification = borrow_global<IdentityVerification>(addr);
-        verification.verification_type
-    }
-    
-    #[view]
-    public fun is_verification_expired(addr: address): bool acquires IdentityVerification {
-        if (!exists<IdentityVerification>(addr)) {
-            return false
-        };
-        
-        let verification = borrow_global<IdentityVerification>(addr);
-        let current_time = timestamp::now_seconds();
-        
-        verification.status == STATUS_VERIFIED && 
-            verification.expiration != 0 && current_time > verification.expiration
-    }
-    
-    #[view]
-    public fun get_verification_details(addr: address): (u8, u8, u64, u64) acquires IdentityVerification {
-        if (!exists<IdentityVerification>(addr)) {
-            return (0, 0, 0, 0)
-        };
-        
-        let verification = borrow_global<IdentityVerification>(addr);
-        
-        (
-            verification.verification_type,
-            verification.status,
-            verification.timestamp,
-            verification.expiration
-        )
+        verification.expiration
     }
     
     #[view]
@@ -456,5 +428,23 @@ module aptos_sybil_shield::identity_verification {
         let config = borrow_global<VerificationConfig>(config_addr);
         
         config.verification_validity_period
+    }
+    
+    #[view]
+    public fun get_max_verification_attempts(): u64 acquires VerificationConfig {
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<VerificationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<VerificationConfig>(config_addr);
+        
+        config.max_verification_attempts
+    }
+    
+    #[view]
+    public fun get_cooldown_period(): u64 acquires VerificationConfig {
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<VerificationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<VerificationConfig>(config_addr);
+        
+        config.cooldown_period
     }
 }

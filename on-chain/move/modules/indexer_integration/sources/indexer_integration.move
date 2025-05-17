@@ -387,18 +387,27 @@ module aptos_sybil_shield::indexer_integration {
         // Validate target addresses
         let targets_count = vector::length(&target_addresses);
         assert!(targets_count > 0, error::invalid_argument(E_INVALID_TARGET_ADDRESS));
-        assert!(targets_count <= config.max_targets_per_submission, error::invalid_argument(E_INVALID_TARGET_ADDRESS));
+        assert!((targets_count as u64) <= config.max_targets_per_submission, error::invalid_argument(E_INVALID_TARGET_ADDRESS));
         
         // Update submission record
         let submission = borrow_global_mut<IndexerSubmission>(indexer_addr);
         submission.submission_count = submission.submission_count + 1;
         submission.last_submission = timestamp::now_seconds();
-        submission.processed_addresses = submission.processed_addresses + targets_count;
+        submission.processed_addresses = submission.processed_addresses + (targets_count as u64);
         
         // Process data if enabled
         if (config.data_processing_enabled) {
-            // In a real implementation, this would process the data and update risk scores
-            // For this example, we'll just count it as successful
+            // In a real implementation, this would process the data and update Sybil scores
+            // For hackathon purposes, we'll just note this integration point
+            if (sybil_detection::is_detection_enabled()) {
+                // Call sybil_detection module to update scores based on indexer data
+                // This is a placeholder for the actual integration
+                submission.successful_submissions = submission.successful_submissions + 1;
+            } else {
+                submission.failed_submissions = submission.failed_submissions + 1;
+            };
+        } else {
+            // Just record the submission without processing
             submission.successful_submissions = submission.successful_submissions + 1;
         };
         
@@ -409,21 +418,23 @@ module aptos_sybil_shield::indexer_integration {
             IndexerEvent {
                 indexer_address: indexer_addr,
                 event_type: EVENT_TYPE_SUBMISSION,
-                timestamp: timestamp::now_seconds(),
+                timestamp: submission.last_submission,
                 data_type,
-                targets_count,
+                targets_count: (targets_count as u64),
             }
         );
     }
     
-    /// Sync indexer data
-    public entry fun sync_indexer(indexer: &signer) acquires IndexerConfig, IndexerRegistration, IndexerEventHandle {
+    /// Sync with indexer
+    public entry fun sync_indexer(
+        indexer: &signer
+    ) acquires IndexerConfig, IndexerRegistration, IndexerEventHandle {
         let indexer_addr = signer::address_of(indexer);
         
         // Check if indexer is registered
         assert!(exists<IndexerRegistration>(indexer_addr), error::not_found(E_INDEXER_NOT_REGISTERED));
         
-        // Get config to check sync interval
+        // Get config
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
@@ -432,11 +443,10 @@ module aptos_sybil_shield::indexer_integration {
         let registration = borrow_global_mut<IndexerRegistration>(indexer_addr);
         assert!(registration.is_active, error::permission_denied(E_NOT_AUTHORIZED));
         
-        let now = timestamp::now_seconds();
-        
         // Check if sync interval has passed
-        assert!(now >= registration.last_sync + config.sync_interval, 
-               error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
+        let now = timestamp::now_seconds();
+        let time_since_last_sync = now - registration.last_sync;
+        assert!(time_since_last_sync >= config.sync_interval, error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
         
         // Update last sync time
         registration.last_sync = now;
@@ -462,7 +472,10 @@ module aptos_sybil_shield::indexer_integration {
     
     #[view]
     public fun is_indexer_active(addr: address): bool acquires IndexerRegistration {
-        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        if (!exists<IndexerRegistration>(addr)) {
+            return false
+        };
+        
         let registration = borrow_global<IndexerRegistration>(addr);
         registration.is_active
     }
@@ -470,6 +483,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_indexer_type(addr: address): u8 acquires IndexerRegistration {
         assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let registration = borrow_global<IndexerRegistration>(addr);
         registration.indexer_type
     }
@@ -477,6 +491,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_indexer_name(addr: address): String acquires IndexerRegistration {
         assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let registration = borrow_global<IndexerRegistration>(addr);
         registration.name
     }
@@ -484,6 +499,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_indexer_url(addr: address): String acquires IndexerRegistration {
         assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let registration = borrow_global<IndexerRegistration>(addr);
         registration.url
     }
@@ -491,6 +507,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_last_sync_time(addr: address): u64 acquires IndexerRegistration {
         assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let registration = borrow_global<IndexerRegistration>(addr);
         registration.last_sync
     }
@@ -498,13 +515,23 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_submission_count(addr: address): u64 acquires IndexerSubmission {
         assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let submission = borrow_global<IndexerSubmission>(addr);
         submission.submission_count
     }
     
     #[view]
+    public fun get_last_submission_time(addr: address): u64 acquires IndexerSubmission {
+        assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
+        let submission = borrow_global<IndexerSubmission>(addr);
+        submission.last_submission
+    }
+    
+    #[view]
     public fun get_processed_addresses_count(addr: address): u64 acquires IndexerSubmission {
         assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let submission = borrow_global<IndexerSubmission>(addr);
         submission.processed_addresses
     }
@@ -512,6 +539,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_successful_submissions_count(addr: address): u64 acquires IndexerSubmission {
         assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let submission = borrow_global<IndexerSubmission>(addr);
         submission.successful_submissions
     }
@@ -519,6 +547,7 @@ module aptos_sybil_shield::indexer_integration {
     #[view]
     public fun get_failed_submissions_count(addr: address): u64 acquires IndexerSubmission {
         assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        
         let submission = borrow_global<IndexerSubmission>(addr);
         submission.failed_submissions
     }
@@ -528,6 +557,7 @@ module aptos_sybil_shield::indexer_integration {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
+        
         config.data_processing_enabled
     }
     
@@ -536,6 +566,7 @@ module aptos_sybil_shield::indexer_integration {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
+        
         config.sync_interval
     }
     
@@ -544,6 +575,7 @@ module aptos_sybil_shield::indexer_integration {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
+        
         config.max_targets_per_submission
     }
 }

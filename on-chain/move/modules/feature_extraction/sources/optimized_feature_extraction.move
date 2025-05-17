@@ -2,7 +2,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string;
+    // Removed unused string module alias
     use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
@@ -144,7 +144,8 @@ module aptos_sybil_shield::optimized_feature_extraction {
         let resource_account_address = account::create_resource_address(&admin_addr, seed);
         
         if (!account::exists_at(resource_account_address)) {
-            let resource_signer_cap = account::create_resource_account(admin, seed);
+            // Properly destructure the tuple returned by create_resource_account
+            let (_, resource_signer_cap) = account::create_resource_account(admin, seed);
             // Store signer capability securely
             move_to(admin, ResourceSignerCapability { cap: resource_signer_cap });
         };
