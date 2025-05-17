@@ -2,7 +2,7 @@ module aptos_sybil_shield::feature_extraction {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string::{Self, String};
+    use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -219,7 +219,6 @@ module aptos_sybil_shield::feature_extraction {
         );
     }
     
-    /// Get feature value
     #[view]
     public fun get_feature_value(addr: address, feature_type: u8, feature_name: String): u64 acquires FeatureData {
         if (!exists<FeatureData>(addr)) {
@@ -242,7 +241,6 @@ module aptos_sybil_shield::feature_extraction {
         0 // Return 0 if feature not found
     }
     
-    /// Get all features for an address
     #[view]
     public fun get_all_features(addr: address): vector<u64> acquires FeatureData {
         if (!exists<FeatureData>(addr)) {
@@ -265,7 +263,6 @@ module aptos_sybil_shield::feature_extraction {
         result
     }
     
-    /// Check if an extractor is authorized
     #[view]
     public fun is_extractor_authorized(extractor: address): bool acquires FeatureConfig {
         let config_addr = @aptos_sybil_shield;
@@ -275,7 +272,6 @@ module aptos_sybil_shield::feature_extraction {
         vector::contains(&config.authorized_extractors, &extractor)
     }
     
-    /// Get last update timestamp
     #[view]
     public fun get_last_update_timestamp(addr: address): u64 acquires FeatureData {
         if (!exists<FeatureData>(addr)) {

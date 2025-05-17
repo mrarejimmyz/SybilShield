@@ -2,7 +2,7 @@ module aptos_sybil_shield::identity_verification {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string::{Self, String};
+    use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -360,7 +360,6 @@ module aptos_sybil_shield::identity_verification {
         );
     }
     
-    /// Check if an address is verified
     #[view]
     public fun is_verified(addr: address): bool acquires IdentityVerification {
         if (!exists<IdentityVerification>(addr)) {
@@ -374,7 +373,6 @@ module aptos_sybil_shield::identity_verification {
             (verification.expiration == 0 || current_time <= verification.expiration)
     }
     
-    /// Get verification status
     #[view]
     public fun get_verification_status(addr: address): u8 acquires IdentityVerification {
         if (!exists<IdentityVerification>(addr)) {
@@ -384,55 +382,54 @@ module aptos_sybil_shield::identity_verification {
         let verification = borrow_global<IdentityVerification>(addr);
         let current_time = timestamp::now_seconds();
         
-        // Check if verification has expired
+        // Check if expired
         if (verification.status == STATUS_VERIFIED && 
-            verification.expiration != 0 && 
-            current_time > verification.expiration) {
+            verification.expiration != 0 && current_time > verification.expiration) {
             return STATUS_EXPIRED
         };
         
         verification.status
     }
     
-    /// Get verification type
     #[view]
     public fun get_verification_type(addr: address): u8 acquires IdentityVerification {
-        assert!(exists<IdentityVerification>(addr), error::not_found(E_NOT_INITIALIZED));
+        if (!exists<IdentityVerification>(addr)) {
+            return 0
+        };
+        
         let verification = borrow_global<IdentityVerification>(addr);
         verification.verification_type
     }
     
-    /// Check if verification is expired
     #[view]
     public fun is_verification_expired(addr: address): bool acquires IdentityVerification {
         if (!exists<IdentityVerification>(addr)) {
-            return true
+            return false
         };
         
         let verification = borrow_global<IdentityVerification>(addr);
         let current_time = timestamp::now_seconds();
         
         verification.status == STATUS_VERIFIED && 
-            verification.expiration != 0 && 
-            current_time > verification.expiration
+            verification.expiration != 0 && current_time > verification.expiration
     }
     
-    /// Get verification details
     #[view]
-    public fun get_verification_details(addr: address): (u8, u8, u64, u64, address) acquires IdentityVerification {
-        assert!(exists<IdentityVerification>(addr), error::not_found(E_NOT_INITIALIZED));
+    public fun get_verification_details(addr: address): (u8, u8, u64, u64) acquires IdentityVerification {
+        if (!exists<IdentityVerification>(addr)) {
+            return (0, 0, 0, 0)
+        };
+        
         let verification = borrow_global<IdentityVerification>(addr);
         
         (
             verification.verification_type,
             verification.status,
             verification.timestamp,
-            verification.expiration,
-            verification.verifier
+            verification.expiration
         )
     }
     
-    /// Get number of verification attempts
     #[view]
     public fun get_verification_attempts(addr: address): u64 acquires IdentityVerification {
         if (!exists<IdentityVerification>(addr)) {
@@ -443,7 +440,6 @@ module aptos_sybil_shield::identity_verification {
         verification.attempts
     }
     
-    /// Check if a verifier is authorized
     #[view]
     public fun is_verifier_authorized(verifier: address): bool acquires VerificationConfig {
         let config_addr = @aptos_sybil_shield;
@@ -453,7 +449,6 @@ module aptos_sybil_shield::identity_verification {
         vector::contains(&config.authorized_verifiers, &verifier)
     }
     
-    /// Get verification validity period
     #[view]
     public fun get_verification_validity_period(): u64 acquires VerificationConfig {
         let config_addr = @aptos_sybil_shield;

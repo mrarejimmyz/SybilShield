@@ -413,36 +413,24 @@ module aptos_sybil_shield::reputation_scoring {
         };
         
         // Recalculate overall score
-        let total_score = 0;
-        let total_weight = 0;
-        let scores_len = vector::length(&reputation.category_scores);
-        let k = 0;
-        
-        while (k < scores_len) {
-            let cat_score = vector::borrow(&reputation.category_scores, k);
-            total_score = total_score + (cat_score.score * cat_score.weight);
-            total_weight = total_weight + cat_score.weight;
-            k = k + 1;
-        };
-        
-        // Calculate weighted average
-        if (total_weight > 0) {
-            reputation.overall_score = total_score / total_weight;
-        };
-        
+        let new_overall_score = calculate_overall_score(&reputation.category_scores);
+        reputation.overall_score = new_overall_score;
         reputation.last_updated = now;
         
-        // Add history entry, maintaining maximum size
-        if (vector::length(&reputation.history) >= MAX_HISTORY_ENTRIES) {
-            // Remove the oldest entry
-            vector::remove(&mut reputation.history, 0);
+        // Add to history if score changed
+        if (old_overall_score != new_overall_score) {
+            // If history is at max size, remove oldest entry
+            if (vector::length(&reputation.history) >= MAX_HISTORY_ENTRIES) {
+                vector::remove(&mut reputation.history, 0);
+            };
+            
+            // Add new history entry
+            vector::push_back(&mut reputation.history, ScoreHistory {
+                overall_score: new_overall_score,
+                timestamp: now,
+                reason,
+            });
         };
-        
-        vector::push_back(&mut reputation.history, ScoreHistory {
-            overall_score: reputation.overall_score,
-            timestamp: now,
-            reason,
-        });
         
         // Emit event
         let event_handle = borrow_global_mut<ReputationEventHandle>(config_addr);
@@ -451,7 +439,7 @@ module aptos_sybil_shield::reputation_scoring {
             ReputationEvent {
                 address: target_addr,
                 old_score: old_overall_score,
-                new_score: reputation.overall_score,
+                new_score: new_overall_score,
                 category,
                 timestamp: now,
                 scorer: scorer_addr,
@@ -459,7 +447,43 @@ module aptos_sybil_shield::reputation_scoring {
         );
     }
     
-    /// Update decay rate for a specific address
+    /// Update verification level based on identity verification status
+    public entry fun update_verification_level(
+        scorer: &signer,
+        target_addr: address
+    ) acquires ReputationScore, ReputationConfig, ReputationEventHandle {
+        let scorer_addr = signer::address_of(scorer);
+        
+        // Get config to check authorization
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<ReputationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<ReputationConfig>(config_addr);
+        
+        // Check if scorer is authorized
+        assert!(vector::contains(&config.authorized_scorers, &scorer_addr), 
+               error::permission_denied(E_NOT_AUTHORIZED));
+        
+        // Check if target has reputation score
+        assert!(exists<ReputationScore>(target_addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
+        
+        // Get verification status from identity verification module
+        let is_verified = identity_verification::is_verified(target_addr);
+        
+        // Calculate verification score
+        let verification_score = if (is_verified) { 100 } else { 0 };
+        
+        // Update verification level category
+        let empty_reason = vector::empty<u8>();
+        update_category_score(
+            scorer,
+            target_addr,
+            CATEGORY_VERIFICATION_LEVEL,
+            verification_score,
+            empty_reason
+        );
+    }
+    
+    /// Update decay rate for an address
     public entry fun update_decay_rate(
         admin: &signer,
         target_addr: address,
@@ -483,23 +507,19 @@ module aptos_sybil_shield::reputation_scoring {
         reputation.decay_rate = decay_rate;
     }
     
-    /// Apply score decay based on time elapsed
+    /// Apply decay to reputation score based on time elapsed
     fun apply_decay(
         reputation: &mut ReputationScore,
         current_time: u64,
         decay_period: u64
     ) {
-        // Check if decay should be applied
-        if (reputation.decay_rate == 0 || decay_period == 0) {
-            return
-        };
+        // Calculate time since last decay update
+        let time_elapsed = current_time - reputation.last_decay_update;
         
-        let time_since_last_decay = current_time - reputation.last_decay_update;
-        
-        // Apply decay if at least one period has passed
-        if (time_since_last_decay >= decay_period) {
-            // Calculate number of periods elapsed
-            let periods = time_since_last_decay / decay_period;
+        // If decay period has passed, apply decay
+        if (time_elapsed >= decay_period && reputation.decay_rate > 0) {
+            // Calculate number of decay periods elapsed
+            let periods = time_elapsed / decay_period;
             
             // Apply decay to each category score
             let len = vector::length(&reputation.category_scores);
@@ -508,85 +528,61 @@ module aptos_sybil_shield::reputation_scoring {
             while (i < len) {
                 let cat_score = vector::borrow_mut(&mut reputation.category_scores, i);
                 
-                // Apply decay formula: score = score * (1 - decay_rate/100)^periods
-                // For simplicity, we'll use a linear approximation
-                let decay_amount = (cat_score.score * reputation.decay_rate * periods) / 100;
-                
-                // Ensure score doesn't go below 0
-                if (decay_amount < cat_score.score) {
-                    cat_score.score = cat_score.score - decay_amount;
-                } else {
-                    cat_score.score = 0;
+                // Skip verification level category (doesn't decay)
+                if (cat_score.category != CATEGORY_VERIFICATION_LEVEL) {
+                    // Apply decay formula: score = score * (1 - decay_rate/100)^periods
+                    let decay_factor = 100 - reputation.decay_rate;
+                    let j = 0;
+                    let decayed_score = cat_score.score;
+                    
+                    while (j < periods) {
+                        decayed_score = decayed_score * decay_factor / 100;
+                        j = j + 1;
+                    };
+                    
+                    cat_score.score = decayed_score;
                 };
                 
                 i = i + 1;
             };
             
             // Recalculate overall score
-            let total_score = 0;
-            let total_weight = 0;
-            let scores_len = vector::length(&reputation.category_scores);
-            let k = 0;
-            
-            while (k < scores_len) {
-                let cat_score = vector::borrow(&reputation.category_scores, k);
-                total_score = total_score + (cat_score.score * cat_score.weight);
-                total_weight = total_weight + cat_score.weight;
-                k = k + 1;
-            };
-            
-            // Calculate weighted average
-            if (total_weight > 0) {
-                reputation.overall_score = total_score / total_weight;
-            };
+            reputation.overall_score = calculate_overall_score(&reputation.category_scores);
             
             // Update last decay update time
             reputation.last_decay_update = current_time;
         };
     }
     
-    /// Get overall reputation score
+    /// Calculate overall score based on weighted category scores
+    fun calculate_overall_score(category_scores: &vector<CategoryScore>): u64 {
+        let len = vector::length(category_scores);
+        let i = 0;
+        let weighted_sum = 0;
+        let total_weight = 0;
+        
+        while (i < len) {
+            let cat_score = vector::borrow(category_scores, i);
+            weighted_sum = weighted_sum + (cat_score.score * cat_score.weight);
+            total_weight = total_weight + cat_score.weight;
+            i = i + 1;
+        };
+        
+        // Avoid division by zero
+        if (total_weight == 0) {
+            return 0
+        };
+        
+        weighted_sum / total_weight
+    }
+    
     #[view]
-    public fun get_overall_score(addr: address): u64 acquires ReputationScore, ReputationConfig {
+    public fun get_reputation_score(addr: address): u64 acquires ReputationScore {
         assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
         let reputation = borrow_global<ReputationScore>(addr);
-        
-        // Get config for decay period
-        let config_addr = @aptos_sybil_shield;
-        assert!(exists<ReputationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
-        let config = borrow_global<ReputationConfig>(config_addr);
-        
-        // Calculate score with decay (view-only, doesn't modify state)
-        let now = timestamp::now_seconds();
-        
-        // Check if decay should be applied
-        if (reputation.decay_rate == 0 || config.decay_period == 0) {
-            return reputation.overall_score
-        };
-        
-        let time_since_last_decay = now - reputation.last_decay_update;
-        
-        // Apply decay if at least one period has passed
-        if (time_since_last_decay >= config.decay_period) {
-            // Calculate number of periods elapsed
-            let periods = time_since_last_decay / config.decay_period;
-            
-            // Apply decay formula: score = score * (1 - decay_rate/100)^periods
-            // For simplicity, we'll use a linear approximation
-            let decay_amount = (reputation.overall_score * reputation.decay_rate * periods) / 100;
-            
-            // Ensure score doesn't go below 0
-            if (decay_amount < reputation.overall_score) {
-                return reputation.overall_score - decay_amount
-            } else {
-                return 0
-            };
-        };
-        
         reputation.overall_score
     }
     
-    /// Get category score
     #[view]
     public fun get_category_score(addr: address, category: u8): u64 acquires ReputationScore {
         assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
@@ -606,86 +602,45 @@ module aptos_sybil_shield::reputation_scoring {
         0 // Return 0 if category not found
     }
     
-    /// Get all category scores
     #[view]
-    public fun get_all_category_scores(addr: address): vector<u8> acquires ReputationScore {
+    public fun is_above_threshold(addr: address): bool acquires ReputationScore, ReputationConfig {
         assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
-        let reputation = borrow_global<ReputationScore>(addr);
         
-        let result = vector::empty<u8>();
-        let len = vector::length(&reputation.category_scores);
-        let i = 0;
-        
-        while (i < len) {
-            let cat_score = vector::borrow(&reputation.category_scores, i);
-            vector::push_back(&mut result, cat_score.category);
-            vector::push_back(&mut result, (cat_score.score as u8));
-            i = i + 1;
-        };
-        
-        result
-    }
-    
-    /// Check if reputation score meets minimum threshold
-    #[view]
-    public fun meets_minimum_threshold(addr: address, threshold: u64): bool acquires ReputationScore, ReputationConfig {
-        if (!exists<ReputationScore>(addr)) {
-            return false
-        };
-        
-        get_overall_score(addr) >= threshold
-    }
-    
-    /// Check if reputation score meets system minimum threshold
-    #[view]
-    public fun meets_system_minimum_threshold(addr: address): bool acquires ReputationScore, ReputationConfig {
-        if (!exists<ReputationScore>(addr)) {
-            return false
-        };
-        
-        // Get config for minimum threshold
         let config_addr = @aptos_sybil_shield;
         assert!(exists<ReputationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<ReputationConfig>(config_addr);
         
-        get_overall_score(addr) >= config.min_threshold
-    }
-    
-    /// Get reputation history
-    #[view]
-    public fun get_reputation_history(addr: address): vector<u64> acquires ReputationScore {
-        assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
         let reputation = borrow_global<ReputationScore>(addr);
-        
-        let result = vector::empty<u64>();
-        let len = vector::length(&reputation.history);
-        let i = 0;
-        
-        while (i < len) {
-            let history_entry = vector::borrow(&reputation.history, i);
-            vector::push_back(&mut result, history_entry.overall_score);
-            vector::push_back(&mut result, history_entry.timestamp);
-            i = i + 1;
-        };
-        
-        result
+        reputation.overall_score >= config.min_threshold
     }
     
-    /// Get last update timestamp
     #[view]
-    public fun get_last_update_timestamp(addr: address): u64 acquires ReputationScore {
+    public fun get_min_threshold(): u64 acquires ReputationConfig {
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<ReputationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<ReputationConfig>(config_addr);
+        config.min_threshold
+    }
+    
+    #[view]
+    public fun get_last_update_time(addr: address): u64 acquires ReputationScore {
         assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
         let reputation = borrow_global<ReputationScore>(addr);
         reputation.last_updated
     }
     
-    /// Check if a scorer is authorized
+    #[view]
+    public fun get_decay_rate(addr: address): u64 acquires ReputationScore {
+        assert!(exists<ReputationScore>(addr), error::not_found(E_ACCOUNT_NOT_REGISTERED));
+        let reputation = borrow_global<ReputationScore>(addr);
+        reputation.decay_rate
+    }
+    
     #[view]
     public fun is_scorer_authorized(scorer: address): bool acquires ReputationConfig {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<ReputationConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<ReputationConfig>(config_addr);
-        
         vector::contains(&config.authorized_scorers, &scorer)
     }
 }

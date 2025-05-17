@@ -2,7 +2,7 @@ module aptos_sybil_shield::indexer_integration {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string::{Self, String};
+    use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -392,18 +392,15 @@ module aptos_sybil_shield::indexer_integration {
         let submission = borrow_global_mut<IndexerSubmission>(indexer_addr);
         submission.submission_count = submission.submission_count + 1;
         submission.last_submission = timestamp::now_seconds();
-        submission.processed_addresses = submission.processed_addresses + (targets_count as u64);
+        submission.processed_addresses = submission.processed_addresses + targets_count;
         
         // Process data if enabled
         if (config.data_processing_enabled) {
-            // In a real implementation, we would process the data and update Sybil scores
-            // For hackathon purposes, we'll simulate processing
-            
-            // Simulate successful processing
+            // In a real implementation, this would process the data and update risk scores
+            // For hackathon purposes, we'll just note this integration point
             submission.successful_submissions = submission.successful_submissions + 1;
-            
-            // In a real implementation, we would call sybil_detection to update risk scores
-            // For each target address, we would analyze the data and update scores accordingly
+        } else {
+            submission.failed_submissions = submission.failed_submissions + 1;
         };
         
         // Emit event
@@ -415,38 +412,33 @@ module aptos_sybil_shield::indexer_integration {
                 event_type: EVENT_TYPE_SUBMISSION,
                 timestamp: timestamp::now_seconds(),
                 data_type,
-                targets_count: (targets_count as u64),
+                targets_count,
             }
         );
     }
     
-    /// Sync with indexer
-    public entry fun sync_indexer(
-        account: &signer,
-        indexer_addr: address
-    ) acquires IndexerConfig, IndexerRegistration, IndexerEventHandle {
-        let caller_addr = signer::address_of(account);
-        
-        // Get config
-        let config_addr = @aptos_sybil_shield;
-        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
-        let config = borrow_global<IndexerConfig>(config_addr);
-        
-        // Check if caller is admin or the indexer itself
-        assert!(caller_addr == config.admin || caller_addr == indexer_addr, 
-               error::permission_denied(E_NOT_AUTHORIZED));
+    /// Sync indexer data
+    public entry fun sync_indexer(indexer: &signer) acquires IndexerConfig, IndexerRegistration, IndexerEventHandle {
+        let indexer_addr = signer::address_of(indexer);
         
         // Check if indexer is registered
         assert!(exists<IndexerRegistration>(indexer_addr), error::not_found(E_INDEXER_NOT_REGISTERED));
         
-        // Update last sync time
+        // Get config to check sync interval
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<IndexerConfig>(config_addr);
+        
+        // Check if indexer is active
         let registration = borrow_global_mut<IndexerRegistration>(indexer_addr);
-        let now = timestamp::now_seconds();
+        assert!(registration.is_active, error::permission_denied(E_NOT_AUTHORIZED));
         
         // Check if sync interval has passed
-        assert!(now >= registration.last_sync + config.sync_interval, 
-               error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
+        let now = timestamp::now_seconds();
+        let time_since_last_sync = now - registration.last_sync;
+        assert!(time_since_last_sync >= config.sync_interval, error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
         
+        // Update last sync time
         registration.last_sync = now;
         
         // Emit event
@@ -463,96 +455,62 @@ module aptos_sybil_shield::indexer_integration {
         );
     }
     
-    /// Get indexer information
     #[view]
-    public fun get_indexer_info(indexer_addr: address): (u8, String, String, u64, bool, u64, u8) acquires IndexerRegistration {
-        assert!(exists<IndexerRegistration>(indexer_addr), error::not_found(E_INDEXER_NOT_REGISTERED));
-        let registration = borrow_global<IndexerRegistration>(indexer_addr);
-        
-        (
-            registration.indexer_type,
-            registration.name,
-            registration.url,
-            registration.last_sync,
-            registration.is_active,
-            registration.registration_time,
-            registration.data_format_version
-        )
+    public fun is_indexer_registered(addr: address): bool {
+        exists<IndexerRegistration>(addr)
     }
     
-    /// Check if indexer is active
     #[view]
-    public fun is_indexer_active(indexer_addr: address): bool acquires IndexerRegistration {
-        if (!exists<IndexerRegistration>(indexer_addr)) {
-            return false
-        };
-        
-        let registration = borrow_global<IndexerRegistration>(indexer_addr);
+    public fun is_indexer_active(addr: address): bool acquires IndexerRegistration {
+        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let registration = borrow_global<IndexerRegistration>(addr);
         registration.is_active
     }
     
-    /// Get submission statistics
     #[view]
-    public fun get_submission_stats(indexer_addr: address): (u64, u64, u64, u64, u64) acquires IndexerSubmission {
-        assert!(exists<IndexerSubmission>(indexer_addr), error::not_found(E_INDEXER_NOT_REGISTERED));
-        let submission = borrow_global<IndexerSubmission>(indexer_addr);
-        
+    public fun get_indexer_type(addr: address): u8 acquires IndexerRegistration {
+        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let registration = borrow_global<IndexerRegistration>(addr);
+        registration.indexer_type
+    }
+    
+    #[view]
+    public fun get_indexer_details(addr: address): (String, String, u64, bool) acquires IndexerRegistration {
+        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let registration = borrow_global<IndexerRegistration>(addr);
+        (
+            registration.name,
+            registration.url,
+            registration.last_sync,
+            registration.is_active
+        )
+    }
+    
+    #[view]
+    public fun get_submission_stats(addr: address): (u64, u64, u64, u64) acquires IndexerSubmission {
+        assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let submission = borrow_global<IndexerSubmission>(addr);
         (
             submission.submission_count,
-            submission.last_submission,
             submission.processed_addresses,
             submission.successful_submissions,
             submission.failed_submissions
         )
     }
     
-    /// Check if indexer is authorized
-    #[view]
-    public fun is_indexer_authorized(indexer_addr: address): bool acquires IndexerConfig {
-        let config_addr = @aptos_sybil_shield;
-        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
-        let config = borrow_global<IndexerConfig>(config_addr);
-        
-        vector::contains(&config.authorized_indexers, &indexer_addr)
-    }
-    
-    /// Get sync interval
-    #[view]
-    public fun get_sync_interval(): u64 acquires IndexerConfig {
-        let config_addr = @aptos_sybil_shield;
-        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
-        let config = borrow_global<IndexerConfig>(config_addr);
-        
-        config.sync_interval
-    }
-    
-    /// Get max targets per submission
-    #[view]
-    public fun get_max_targets_per_submission(): u64 acquires IndexerConfig {
-        let config_addr = @aptos_sybil_shield;
-        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
-        let config = borrow_global<IndexerConfig>(config_addr);
-        
-        config.max_targets_per_submission
-    }
-    
-    /// Check if data processing is enabled
     #[view]
     public fun is_data_processing_enabled(): bool acquires IndexerConfig {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
-        
         config.data_processing_enabled
     }
     
-    /// Get all required indexer types
     #[view]
-    public fun get_required_indexer_types(): vector<u8> acquires IndexerConfig {
+    public fun get_sync_interval(): u64 acquires IndexerConfig {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
-        
-        config.required_indexer_types
+        config.sync_interval
     }
 }

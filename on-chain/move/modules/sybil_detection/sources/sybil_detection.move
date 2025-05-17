@@ -350,7 +350,6 @@ module aptos_sybil_shield::sybil_detection {
         is_authorized
     }
     
-    /// Get the current risk threshold
     #[view]
     public fun get_risk_threshold(): u64 acquires SybilConfig {
         let config_addr = @aptos_sybil_shield;

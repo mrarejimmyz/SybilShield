@@ -1,4 +1,4 @@
-# Dockerfile.move - Guaranteed line ending fix approach
+# Dockerfile.move - Optimized with robust account extraction and Move.toml fix
 FROM ubuntu:22.04
 
 # Install dependencies
@@ -21,11 +21,21 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install Aptos CLI
 RUN curl -fsSL "https://aptos.dev/scripts/install_cli.py" | python3
 
+# Ensure Aptos CLI is in PATH
+RUN which aptos || { \
+    echo "Aptos CLI not found in PATH, creating symlink"; \
+    find / -name aptos -type f -executable 2>/dev/null | head -n 1 | xargs -I{} ln -sf {} /usr/local/bin/aptos; \
+    }
+
+# Verify Aptos CLI is installed
+RUN aptos --version
+
 # Set working directory
 WORKDIR /aptos-sybil-shield
 
 # Create the expected directory structure
 RUN mkdir -p /aptos-sybil-shield/on-chain/move/sources
+RUN mkdir -p /aptos-sybil-shield/on-chain/move/scripts
 
 # Copy the Move.toml file
 COPY on-chain/move/Move.toml /aptos-sybil-shield/on-chain/move/
@@ -57,7 +67,7 @@ ls -la /aptos-sybil-shield/on-chain/move/sources/
 echo "Creating deployment script with guaranteed Unix line endings..."
 cat > /aptos-sybil-shield/on-chain/move/scripts/deploy_devnet.sh << 'EOF'
 #!/bin/bash
-# Deploy AptosSybilShield to Aptos devnet
+# Deploy AptosSybilShield to Aptos devnet - Optimized Version
 
 set -e
 
@@ -73,126 +83,279 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Check if aptos CLI is installed
-if ! command -v aptos &> /dev/null; then
-    echo -e "${RED}Error: aptos CLI is not installed.${NC}"
-    echo "Please install it by following the instructions at: https://aptos.dev/tools/aptos-cli/install-cli/"
-    exit 1
-fi
+# Helper functions
+log_info() {
+    echo -e "${YELLOW}$1${NC}"
+}
 
-# Check if profile exists
-if ! aptos config show-profiles | grep -q "$PROFILE"; then
-    echo -e "${YELLOW}Profile '$PROFILE' not found. Creating it...${NC}"
+log_success() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}$1${NC}"
+    return 1
+}
+
+check_prerequisites() {
+    # Check if aptos CLI is installed
+    if ! command -v aptos &> /dev/null; then
+        log_error "Error: aptos CLI is not installed."
+        echo "Please install it by following the instructions at: https://aptos.dev/tools/aptos-cli/install-cli/"
+        exit 1
+    fi
+}
+
+# Enhanced function to extract account address from CLI output
+extract_account_from_init_output() {
+    local init_output=$1
+    local extracted_address=""
     
-    # Check if private key is provided
-    if [ -z "$PRIVATE_KEY" ]; then
-        echo -e "${YELLOW}No private key provided. Generating a new account...${NC}"
-        aptos init --profile "$PROFILE" --network devnet
+    # Look for the account address in the CLI output - multiple formats
+    # Format 1: "Account 0x123... is not funded"
+    if echo "$init_output" | grep -q "Account 0x"; then
+        extracted_address=$(echo "$init_output" | grep "Account 0x" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+    # Format 2: "Aptos CLI is now set up for account 0x123... as profile"
+    elif echo "$init_output" | grep -q "set up for account"; then
+        extracted_address=$(echo "$init_output" | grep "set up for account" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+    # Format 3: Look for any 0x... hex string that looks like an address
+    elif echo "$init_output" | grep -q "0x[a-fA-F0-9]\{1,\}"; then
+        extracted_address=$(echo "$init_output" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+    fi
+    
+    echo "$extracted_address"
+}
+
+setup_profile() {
+    log_info "Checking for profile '$PROFILE'..."
+    if ! aptos config show-profiles | grep -q "$PROFILE"; then
+        log_info "Profile '$PROFILE' not found. Creating it..."
         
-        # Get the account address from the created profile
-        ACCOUNT_ADDRESS=$(aptos config show-profiles --profile "$PROFILE" | grep 'account:' | awk '{print $2}')
-        echo -e "${GREEN}Created new account: $ACCOUNT_ADDRESS${NC}"
-        
-        # Fund the account using faucet
-        echo -e "${YELLOW}Funding account from faucet...${NC}"
-        aptos account fund-with-faucet --account "$ACCOUNT_ADDRESS" --profile "$PROFILE"
-    else
-        # Use provided private key
-        echo -e "${YELLOW}Using provided private key...${NC}"
-        if [ -z "$ACCOUNT_ADDRESS" ]; then
-            echo -e "${RED}Error: Account address must be provided when using a private key.${NC}"
-            exit 1
+        if [ -z "$PRIVATE_KEY" ]; then
+            log_info "No private key provided. Generating a new account..."
+            # Capture the full output of the init command
+            INIT_OUTPUT=$(aptos init --profile "$PROFILE" --network devnet 2>&1)
+            echo "$INIT_OUTPUT"
+            
+            # Extract account address directly from init output
+            EXTRACTED_ADDRESS=$(extract_account_from_init_output "$INIT_OUTPUT")
+            
+            if [ -n "$EXTRACTED_ADDRESS" ]; then
+                ACCOUNT_ADDRESS=$EXTRACTED_ADDRESS
+                log_success "Extracted account address from init output: $ACCOUNT_ADDRESS"
+            else
+                # Fallback to other methods if extraction failed
+                get_account_address
+            fi
+            
+            # Verify we have an account address before proceeding
+            if [ -z "$ACCOUNT_ADDRESS" ]; then
+                log_error "Failed to determine account address after initialization. Aborting."
+                exit 1
+            fi
+            
+            log_success "Created new account: $ACCOUNT_ADDRESS"
+        else
+            # Use provided private key
+            log_info "Using provided private key..."
+            if [ -z "$ACCOUNT_ADDRESS" ]; then
+                log_error "Error: Account address must be provided when using a private key."
+                exit 1
+            fi
+            
+            aptos init --profile "$PROFILE" --private-key "$PRIVATE_KEY" --network devnet
         fi
         
-        aptos init --profile "$PROFILE" --private-key "$PRIVATE_KEY" --network devnet
+        # Fund the account using faucet with explicit account address
+        fund_account
+    else
+        log_success "Using existing profile: $PROFILE"
+        get_account_address
+        log_success "Account address: $ACCOUNT_ADDRESS"
+        
+        # Check account balance
+        log_info "Checking account balance..."
+        aptos account list --profile "$PROFILE"
         
         # Fund the account using faucet
-        echo -e "${YELLOW}Funding account from faucet...${NC}"
-        aptos account fund-with-faucet --account "$ACCOUNT_ADDRESS" --profile "$PROFILE"
+        fund_account
     fi
-else
-    echo -e "${GREEN}Using existing profile: $PROFILE${NC}"
+}
+
+get_account_address() {
+    # Get the account address from the profile
+    PROFILE_INFO=$(aptos config show-profiles --profile "$PROFILE" 2>&1)
     
-    # Get the account address from the existing profile
-    ACCOUNT_ADDRESS=$(aptos config show-profiles --profile "$PROFILE" | grep 'account:' | awk '{print $2}')
-    echo -e "${GREEN}Account address: $ACCOUNT_ADDRESS${NC}"
+    # Try different formats based on CLI version
+    if echo "$PROFILE_INFO" | grep -q "Account"; then
+        ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep "Account" | awk '{print $NF}')
+    elif echo "$PROFILE_INFO" | grep -q "account:"; then
+        ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep "account:" | awk '{print $2}')
+    elif echo "$PROFILE_INFO" | grep -q "0x[a-fA-F0-9]\{1,\}"; then
+        # Extract any hex address format
+        ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+    else
+        # Try to read from config file
+        if [ -f "$HOME/.aptos/config.yaml" ]; then
+            log_info "Trying to read account from config file..."
+            ACCOUNT_ADDRESS=$(grep -A 5 "$PROFILE" "$HOME/.aptos/config.yaml" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+        fi
+    fi
     
-    # Check account balance
-    echo -e "${YELLOW}Checking account balance...${NC}"
-    aptos account list --profile "$PROFILE"
+    # If still empty, ask the user
+    if [ -z "$ACCOUNT_ADDRESS" ]; then
+        log_info "Could not automatically detect account address. Please enter it manually:"
+        read -p "Enter account address: " ACCOUNT_ADDRESS
+    fi
+}
+
+fund_account() {
+    # Verify we have an account address before attempting to fund
+    if [ -z "$ACCOUNT_ADDRESS" ]; then
+        log_error "Error: Cannot fund account - account address is empty."
+        exit 1
+    fi
     
-    # Fund the account using faucet if needed
-    echo -e "${YELLOW}Funding account from faucet...${NC}"
+    log_info "Funding account from faucet for address: $ACCOUNT_ADDRESS"
     aptos account fund-with-faucet --account "$ACCOUNT_ADDRESS" --profile "$PROFILE"
-fi
+    
+    # Verify funding was successful
+    log_info "Verifying account balance after funding..."
+    aptos account list --profile "$PROFILE"
+}
 
-# Update the Move.toml with the account address
-echo -e "${YELLOW}Updating Move.toml with account address...${NC}"
-sed -i "s/aptos_sybil_shield = \"_\"/aptos_sybil_shield = \"$ACCOUNT_ADDRESS\"/" "$MODULE_PATH/Move.toml"
+update_move_toml() {
+    log_info "Updating Move.toml with account address..."
+    
+    # Create a backup of the original Move.toml
+    cp "$MODULE_PATH/Move.toml" "$MODULE_PATH/Move.toml.bak"
+    
+    # First, check if the file contains the placeholder
+    if grep -q 'aptos_sybil_shield = "_"' "$MODULE_PATH/Move.toml"; then
+        log_info "Found placeholder in Move.toml, replacing it..."
+        # Replace the placeholder with the actual address
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            sed -i '' "s/aptos_sybil_shield = \"_\"/aptos_sybil_shield = \"$ACCOUNT_ADDRESS\"/" "$MODULE_PATH/Move.toml"
+        else
+            # Linux/Windows Git Bash
+            sed -i "s/aptos_sybil_shield = \"_\"/aptos_sybil_shield = \"$ACCOUNT_ADDRESS\"/" "$MODULE_PATH/Move.toml"
+        fi
+    else
+        log_info "No placeholder found, updating any existing address..."
+        # Replace any existing address in the [addresses] section
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            sed -i '' -E "s/(aptos_sybil_shield = \")(0x[a-fA-F0-9]+)(\")/\1$ACCOUNT_ADDRESS\3/" "$MODULE_PATH/Move.toml"
+        else
+            # Linux/Windows Git Bash
+            sed -i -E "s/(aptos_sybil_shield = \")(0x[a-fA-F0-9]+)(\")/\1$ACCOUNT_ADDRESS\3/" "$MODULE_PATH/Move.toml"
+        fi
+    fi
+    
+    # Also update the dev-addresses section if it exists
+    if grep -q '\[dev-addresses\]' "$MODULE_PATH/Move.toml"; then
+        log_info "Updating dev-addresses section..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            sed -i '' -E "/\[dev-addresses\]/,/^\[/ s/(aptos_sybil_shield = \")(0x[a-fA-F0-9]+|0xcafe)(\")/\1$ACCOUNT_ADDRESS\3/" "$MODULE_PATH/Move.toml"
+        else
+            # Linux/Windows Git Bash
+            sed -i -E "/\[dev-addresses\]/,/^\[/ s/(aptos_sybil_shield = \")(0x[a-fA-F0-9]+|0xcafe)(\")/\1$ACCOUNT_ADDRESS\3/" "$MODULE_PATH/Move.toml"
+        fi
+    fi
+    
+    log_info "Move.toml contents after update:"
+    cat "$MODULE_PATH/Move.toml"
+}
 
-# Compile the modules
-echo -e "${YELLOW}Compiling Move modules...${NC}"
-cd "$MODULE_PATH"
-aptos move compile --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
+compile_modules() {
+    log_info "Compiling Move modules..."
+    cd "$MODULE_PATH"
+    # Check if the --profile flag is supported
+    if aptos move compile --help | grep -q -- "--profile"; then
+        aptos move compile --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
+    else
+        # Older CLI versions
+        aptos move compile --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS"
+    fi
+}
 
-# Publish the modules
-echo -e "${YELLOW}Publishing Move modules to devnet...${NC}"
-aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
+publish_modules() {
+    log_info "Publishing Move modules to devnet..."
+    # Check if the --profile flag is supported
+    if aptos move publish --help | grep -q -- "--profile"; then
+        aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
+    else
+        # Older CLI versions
+        log_info "Using CLI without profile support for publishing..."
+        aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS"
+    fi
+    
+    log_success "AptosSybilShield has been successfully deployed to Aptos devnet!"
+    log_success "Account address: $ACCOUNT_ADDRESS"
+}
 
-echo -e "${GREEN}AptosSybilShield has been successfully deployed to Aptos devnet!${NC}"
-echo -e "${GREEN}Account address: $ACCOUNT_ADDRESS${NC}"
+initialize_module() {
+    local module_name=$1
+    log_info "Initializing ${module_name} module..."
+    
+    # Check if the --profile flag is supported
+    if aptos move run --help | grep -q -- "--profile"; then
+        aptos move run \
+            --function-id "$ACCOUNT_ADDRESS::${module_name}::initialize" \
+            --profile "$PROFILE"
+    else
+        # Older CLI versions
+        aptos move run \
+            --function-id "$ACCOUNT_ADDRESS::${module_name}::initialize"
+    fi
+}
 
-# Initialize the modules
-echo -e "${YELLOW}Initializing modules...${NC}"
+initialize_modules() {
+    log_info "Initializing modules..."
+    
+    # List of modules to initialize
+    local modules=("sybil_detection" "identity_verification" "reputation_scoring" "indexer_integration" "feature_extraction")
+    
+    for module in "${modules[@]}"; do
+        initialize_module "$module"
+    done
+    
+    log_success "All modules have been initialized successfully!"
+    log_success "AptosSybilShield is now ready to use on devnet."
+}
 
-# Initialize sybil_detection module
-echo -e "${YELLOW}Initializing sybil_detection module...${NC}"
-aptos move run \
-    --function-id "$ACCOUNT_ADDRESS::sybil_detection::initialize" \
-    --profile "$PROFILE"
+save_deployment_info() {
+    DEPLOYMENT_INFO="deployment_info.txt"
+    echo "AptosSybilShield Deployment Information" > "$DEPLOYMENT_INFO"
+    echo "=======================================" >> "$DEPLOYMENT_INFO"
+    echo "Network: Aptos Devnet" >> "$DEPLOYMENT_INFO"
+    echo "Account Address: $ACCOUNT_ADDRESS" >> "$DEPLOYMENT_INFO"
+    echo "Deployment Date: $(date)" >> "$DEPLOYMENT_INFO"
+    echo "Modules:" >> "$DEPLOYMENT_INFO"
+    echo "  - sybil_detection" >> "$DEPLOYMENT_INFO"
+    echo "  - identity_verification" >> "$DEPLOYMENT_INFO"
+    echo "  - reputation_scoring" >> "$DEPLOYMENT_INFO"
+    echo "  - indexer_integration" >> "$DEPLOYMENT_INFO"
+    echo "  - feature_extraction" >> "$DEPLOYMENT_INFO"
+    
+    log_success "Deployment information saved to $DEPLOYMENT_INFO"
+}
 
-# Initialize identity_verification module
-echo -e "${YELLOW}Initializing identity_verification module...${NC}"
-aptos move run \
-    --function-id "$ACCOUNT_ADDRESS::identity_verification::initialize" \
-    --profile "$PROFILE"
+# Main execution flow
+main() {
+    check_prerequisites
+    setup_profile
+    update_move_toml
+    compile_modules
+    publish_modules
+    initialize_modules
+    save_deployment_info
+}
 
-# Initialize reputation_scoring module
-echo -e "${YELLOW}Initializing reputation_scoring module...${NC}"
-aptos move run \
-    --function-id "$ACCOUNT_ADDRESS::reputation_scoring::initialize" \
-    --profile "$PROFILE"
-
-# Initialize indexer_integration module
-echo -e "${YELLOW}Initializing indexer_integration module...${NC}"
-aptos move run \
-    --function-id "$ACCOUNT_ADDRESS::indexer_integration::initialize" \
-    --profile "$PROFILE"
-
-# Initialize feature_extraction module
-echo -e "${YELLOW}Initializing feature_extraction module...${NC}"
-aptos move run \
-    --function-id "$ACCOUNT_ADDRESS::feature_extraction::initialize" \
-    --profile "$PROFILE"
-
-echo -e "${GREEN}All modules have been initialized successfully!${NC}"
-echo -e "${GREEN}AptosSybilShield is now ready to use on devnet.${NC}"
-
-# Save deployment information
-DEPLOYMENT_INFO="deployment_info.txt"
-echo "AptosSybilShield Deployment Information" > "$DEPLOYMENT_INFO"
-echo "=======================================" >> "$DEPLOYMENT_INFO"
-echo "Network: Aptos Devnet" >> "$DEPLOYMENT_INFO"
-echo "Account Address: $ACCOUNT_ADDRESS" >> "$DEPLOYMENT_INFO"
-echo "Deployment Date: $(date)" >> "$DEPLOYMENT_INFO"
-echo "Modules:" >> "$DEPLOYMENT_INFO"
-echo "  - sybil_detection" >> "$DEPLOYMENT_INFO"
-echo "  - identity_verification" >> "$DEPLOYMENT_INFO"
-echo "  - reputation_scoring" >> "$DEPLOYMENT_INFO"
-echo "  - indexer_integration" >> "$DEPLOYMENT_INFO"
-echo "  - feature_extraction" >> "$DEPLOYMENT_INFO"
-
-echo -e "${GREEN}Deployment information saved to $DEPLOYMENT_INFO${NC}"
+# Execute main function
+main
 EOF
 
 # Make the script executable
@@ -224,7 +387,30 @@ if ! command -v aptos &> /dev/null; then
 fi
 
 # Get the account address from the existing profile
-ACCOUNT_ADDRESS=$(aptos config show-profiles --profile "$PROFILE" | grep 'account:' | awk '{print $2}')
+PROFILE_INFO=$(aptos config show-profiles --profile "$PROFILE" 2>&1)
+    
+# Try different formats based on CLI version
+if echo "$PROFILE_INFO" | grep -q "Account"; then
+    ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep "Account" | awk '{print $NF}')
+elif echo "$PROFILE_INFO" | grep -q "account:"; then
+    ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep "account:" | awk '{print $2}')
+elif echo "$PROFILE_INFO" | grep -q "0x[a-fA-F0-9]\{1,\}"; then
+    # Extract any hex address format
+    ACCOUNT_ADDRESS=$(echo "$PROFILE_INFO" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+else
+    # Try to read from config file
+    if [ -f "$HOME/.aptos/config.yaml" ]; then
+        echo -e "${YELLOW}Trying to read account from config file...${NC}"
+        ACCOUNT_ADDRESS=$(grep -A 5 "$PROFILE" "$HOME/.aptos/config.yaml" | grep -o "0x[a-fA-F0-9]\{1,\}" | head -1)
+    fi
+fi
+
+# If still empty, ask the user
+if [ -z "$ACCOUNT_ADDRESS" ]; then
+    echo -e "${YELLOW}Could not automatically detect account address. Please enter it manually:${NC}"
+    read -p "Enter account address: " ACCOUNT_ADDRESS
+fi
+
 echo -e "${GREEN}Using account address: $ACCOUNT_ADDRESS${NC}"
 
 # Test sybil_detection module
