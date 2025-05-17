@@ -2,6 +2,7 @@ module aptos_sybil_shield::indexer_integration {
     use std::error;
     use std::signer;
     use std::vector;
+    use std::string;
     use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
@@ -397,10 +398,8 @@ module aptos_sybil_shield::indexer_integration {
         // Process data if enabled
         if (config.data_processing_enabled) {
             // In a real implementation, this would process the data and update risk scores
-            // For hackathon purposes, we'll just note this integration point
+            // For this example, we'll just count it as successful
             submission.successful_submissions = submission.successful_submissions + 1;
-        } else {
-            submission.failed_submissions = submission.failed_submissions + 1;
         };
         
         // Emit event
@@ -433,10 +432,11 @@ module aptos_sybil_shield::indexer_integration {
         let registration = borrow_global_mut<IndexerRegistration>(indexer_addr);
         assert!(registration.is_active, error::permission_denied(E_NOT_AUTHORIZED));
         
-        // Check if sync interval has passed
         let now = timestamp::now_seconds();
-        let time_since_last_sync = now - registration.last_sync;
-        assert!(time_since_last_sync >= config.sync_interval, error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
+        
+        // Check if sync interval has passed
+        assert!(now >= registration.last_sync + config.sync_interval, 
+               error::invalid_state(E_SYNC_INTERVAL_NOT_REACHED));
         
         // Update last sync time
         registration.last_sync = now;
@@ -475,27 +475,52 @@ module aptos_sybil_shield::indexer_integration {
     }
     
     #[view]
-    public fun get_indexer_details(addr: address): (String, String, u64, bool) acquires IndexerRegistration {
+    public fun get_indexer_name(addr: address): String acquires IndexerRegistration {
         assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
         let registration = borrow_global<IndexerRegistration>(addr);
-        (
-            registration.name,
-            registration.url,
-            registration.last_sync,
-            registration.is_active
-        )
+        registration.name
     }
     
     #[view]
-    public fun get_submission_stats(addr: address): (u64, u64, u64, u64) acquires IndexerSubmission {
+    public fun get_indexer_url(addr: address): String acquires IndexerRegistration {
+        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let registration = borrow_global<IndexerRegistration>(addr);
+        registration.url
+    }
+    
+    #[view]
+    public fun get_last_sync_time(addr: address): u64 acquires IndexerRegistration {
+        assert!(exists<IndexerRegistration>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let registration = borrow_global<IndexerRegistration>(addr);
+        registration.last_sync
+    }
+    
+    #[view]
+    public fun get_submission_count(addr: address): u64 acquires IndexerSubmission {
         assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
         let submission = borrow_global<IndexerSubmission>(addr);
-        (
-            submission.submission_count,
-            submission.processed_addresses,
-            submission.successful_submissions,
-            submission.failed_submissions
-        )
+        submission.submission_count
+    }
+    
+    #[view]
+    public fun get_processed_addresses_count(addr: address): u64 acquires IndexerSubmission {
+        assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let submission = borrow_global<IndexerSubmission>(addr);
+        submission.processed_addresses
+    }
+    
+    #[view]
+    public fun get_successful_submissions_count(addr: address): u64 acquires IndexerSubmission {
+        assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let submission = borrow_global<IndexerSubmission>(addr);
+        submission.successful_submissions
+    }
+    
+    #[view]
+    public fun get_failed_submissions_count(addr: address): u64 acquires IndexerSubmission {
+        assert!(exists<IndexerSubmission>(addr), error::not_found(E_INDEXER_NOT_REGISTERED));
+        let submission = borrow_global<IndexerSubmission>(addr);
+        submission.failed_submissions
     }
     
     #[view]
@@ -512,5 +537,13 @@ module aptos_sybil_shield::indexer_integration {
         assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
         let config = borrow_global<IndexerConfig>(config_addr);
         config.sync_interval
+    }
+    
+    #[view]
+    public fun get_max_targets_per_submission(): u64 acquires IndexerConfig {
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<IndexerConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<IndexerConfig>(config_addr);
+        config.max_targets_per_submission
     }
 }

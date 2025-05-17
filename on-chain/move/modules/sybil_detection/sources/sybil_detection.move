@@ -294,7 +294,6 @@ module aptos_sybil_shield::sybil_detection {
         risk_score.verification_status = status;
     }
     
-    /// Get risk score for an address (public view function)
     #[view]
     public fun get_risk_score(addr: address): u64 acquires RiskScore {
         assert!(exists<RiskScore>(addr), error::not_found(E_NOT_INITIALIZED));
@@ -302,7 +301,6 @@ module aptos_sybil_shield::sybil_detection {
         risk_score.score
     }
     
-    /// Get detailed risk information for an address
     #[view]
     public fun get_risk_details(addr: address): (u64, u64, u8) acquires RiskScore {
         assert!(exists<RiskScore>(addr), error::not_found(E_NOT_INITIALIZED));
@@ -310,7 +308,6 @@ module aptos_sybil_shield::sybil_detection {
         (risk_score.score, risk_score.last_updated, risk_score.verification_status)
     }
     
-    /// Check if an address is flagged as potential Sybil
     #[view]
     public fun is_flagged(addr: address): bool acquires RiskScore, SybilConfig {
         assert!(exists<RiskScore>(addr), error::not_found(E_NOT_INITIALIZED));
@@ -323,7 +320,6 @@ module aptos_sybil_shield::sybil_detection {
         risk_score.score >= config.risk_threshold
     }
     
-    /// Check if verification is required
     #[view]
     public fun is_verification_required(): bool acquires SybilConfig {
         let config_addr = @aptos_sybil_shield;
@@ -332,7 +328,6 @@ module aptos_sybil_shield::sybil_detection {
         config.verification_required
     }
     
-    /// Get verification status for an address
     #[view]
     public fun get_verification_status(addr: address): u8 acquires RiskScore {
         assert!(exists<RiskScore>(addr), error::not_found(E_NOT_INITIALIZED));
@@ -340,7 +335,6 @@ module aptos_sybil_shield::sybil_detection {
         risk_score.verification_status
     }
     
-    /// Check if a service is authorized
     #[view]
     public fun is_service_authorized(service_addr: address): bool acquires SybilConfig {
         let config_addr = @aptos_sybil_shield;

@@ -1,8 +1,9 @@
-module aptos_sybil_shield::feature_extraction {
+module aptos_sybil_shield::optimized_feature_extraction {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string::{Self, String};
+    use std::string;
+    use std::string::String;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -424,22 +425,23 @@ module aptos_sybil_shield::feature_extraction {
         };
     }
     
-    /// Get feature value - optimized with O(1) lookup
     #[view]
     public fun get_feature_value(addr: address, feature_type: u8, feature_name: String): u64 acquires FeatureData, Roles {
-        // No role check for view function to reduce gas costs
+        // Verify caller has reader role - commented out for view function
+        // assert_has_role(signer::address_of(reader), ROLE_READER);
         
         if (!exists<FeatureData>(addr)) {
             return 0
         };
         
         let feature_data = borrow_global<FeatureData>(addr);
+        
         let feature_key = FeatureKey {
             feature_type,
             name: feature_name,
         };
         
-        // O(1) lookup with table
+        // O(1) lookup with Table
         if (table::contains(&feature_data.features, feature_key)) {
             let feature = table::borrow(&feature_data.features, feature_key);
             return feature.value
@@ -448,51 +450,39 @@ module aptos_sybil_shield::feature_extraction {
         0 // Return 0 if feature not found
     }
     
-    /// Get all features for an address - optimized version
     #[view]
-    public fun get_all_features(addr: address): vector<u64> acquires FeatureData, Roles {
-        // No role check for view function to reduce gas costs
+    public fun get_all_features(addr: address): (vector<u8>, vector<String>, vector<u64>) acquires FeatureData, Roles {
+        // Verify caller has reader role - commented out for view function
+        // assert_has_role(signer::address_of(reader), ROLE_READER);
+        
+        let feature_types = vector::empty<u8>();
+        let feature_names = vector::empty<String>();
+        let feature_values = vector::empty<u64>();
         
         if (!exists<FeatureData>(addr)) {
-            return vector::empty<u64>()
+            return (feature_types, feature_names, feature_values)
         };
         
         let feature_data = borrow_global<FeatureData>(addr);
-        let result = vector::empty<u64>();
         
-        // This would ideally use table iteration, but Move doesn't support it directly
-        // In a real implementation, we would need a different approach
-        // For this optimization example, we'll return a placeholder
+        // This is a simplified implementation since we can't iterate over Table in Move
+        // In a real implementation, we would need to maintain a separate vector of keys
+        // or use a different data structure that supports iteration
         
-        vector::push_back(&mut result, 0); // Placeholder
+        // For this example, we'll return empty vectors
+        // In practice, you would need to track keys separately
         
-        result
+        (feature_types, feature_names, feature_values)
     }
     
-    /// Check if an account has a specific role
     #[view]
-    public fun has_role(account_addr: address, role_type: u8): bool acquires Roles {
+    public fun is_extractor_authorized(extractor: address): bool acquires Roles {
         assert!(exists<Roles>(@aptos_sybil_shield), error::not_found(E_NOT_INITIALIZED));
-        
         let roles = borrow_global<Roles>(@aptos_sybil_shield);
         
-        if (role_type == ROLE_ADMIN) {
-            return table::contains(&roles.admin_roles, account_addr) && *table::borrow(&roles.admin_roles, account_addr)
-        } else if (role_type == ROLE_EXTRACTOR) {
-            return table::contains(&roles.extractor_roles, account_addr) && *table::borrow(&roles.extractor_roles, account_addr)
-        } else if (role_type == ROLE_READER) {
-            return table::contains(&roles.reader_roles, account_addr) && *table::borrow(&roles.reader_roles, account_addr)
-        };
-        
-        false
+        table::contains(&roles.extractor_roles, extractor)
     }
     
-    /// Assert that an account has a specific role - internal helper
-    fun assert_has_role(account_addr: address, role_type: u8) acquires Roles {
-        assert!(has_role(account_addr, role_type), error::permission_denied(E_NOT_AUTHORIZED));
-    }
-    
-    /// Get last update timestamp
     #[view]
     public fun get_last_update_timestamp(addr: address): u64 acquires FeatureData {
         if (!exists<FeatureData>(addr)) {
@@ -501,5 +491,30 @@ module aptos_sybil_shield::feature_extraction {
         
         let feature_data = borrow_global<FeatureData>(addr);
         feature_data.last_updated
+    }
+    
+    #[view]
+    public fun is_batch_events_enabled(): bool acquires FeatureConfig {
+        let config_addr = @aptos_sybil_shield;
+        assert!(exists<FeatureConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
+        let config = borrow_global<FeatureConfig>(config_addr);
+        
+        config.batch_events
+    }
+    
+    /// Internal function to verify role
+    fun assert_has_role(addr: address, role_type: u8) acquires Roles {
+        assert!(exists<Roles>(@aptos_sybil_shield), error::not_found(E_NOT_INITIALIZED));
+        let roles = borrow_global<Roles>(@aptos_sybil_shield);
+        
+        if (role_type == ROLE_ADMIN) {
+            assert!(table::contains(&roles.admin_roles, addr), error::permission_denied(E_NOT_AUTHORIZED));
+        } else if (role_type == ROLE_EXTRACTOR) {
+            assert!(table::contains(&roles.extractor_roles, addr), error::permission_denied(E_NOT_AUTHORIZED));
+        } else if (role_type == ROLE_READER) {
+            assert!(table::contains(&roles.reader_roles, addr), error::permission_denied(E_NOT_AUTHORIZED));
+        } else {
+            assert!(false, error::invalid_argument(E_INVALID_ROLE));
+        };
     }
 }
