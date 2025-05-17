@@ -351,4 +351,12 @@ module aptos_sybil_shield::sybil_detection {
         let config = borrow_global<SybilConfig>(config_addr);
         config.risk_threshold
     }
+    
+    // Added missing function that's called by indexer_integration.move
+    #[view]
+    public fun is_detection_enabled(): bool {
+        // Default implementation returns false
+        // In a real implementation, this would check if detection is enabled in the config
+        false
+    }
 }

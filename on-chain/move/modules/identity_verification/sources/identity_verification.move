@@ -2,7 +2,7 @@ module aptos_sybil_shield::identity_verification {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::string::String;
+    // Removed unused String alias
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
