@@ -102,7 +102,25 @@ services:
     command: compile-move
     profiles:
       - dev
+      
+  # Move Deployment (specialized container for deploying Move modules)
+  move-deployment:
+    build:
+      context: .
+      dockerfile: Dockerfile.move
+      no_cache: true  # Force rebuild to ensure scripts are properly converted
+    image: aptos-sybil-shield-move-deployment
+    container_name: aptos-sybil-shield-move-deployment
+    volumes:
+      - ./on-chain/move/modules:/modules  # Only mount the modules directory, not scripts
+      - ./shared:/shared  # For deployment information
+    environment:
+      - ACCOUNT_ADDRESS=${CONTRACT_ADDRESS:-}
+      - PRIVATE_KEY=${PRIVATE_KEY:-}
+    profiles:
+      - deploy
 
 volumes:
   data:
   logs:
+  shared:
