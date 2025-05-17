@@ -1,0 +1,21 @@
+[package]
+name = "AptosSybilShield"
+version = "0.1.0"
+authors = ["AptosSybilShield Team"]
+
+[addresses]
+aptos_sybil_shield = "_"
+std = "0x1"
+aptos_framework = "0x1"
+aptos_std = "0x1"
+aptos_token = "0x3"
+
+[dev-addresses]
+aptos_sybil_shield = "0xcafe"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
+AptosStdlib = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-stdlib/", rev = "devnet" }
+AptosToken = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token/", rev = "devnet" }
+
+[dev-dependencies]

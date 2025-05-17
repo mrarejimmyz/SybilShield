@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_TYPE: api
+    image: aptos-sybil-shield-api
+    container_name: aptos-sybil-shield-api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+      - APTOS_FAUCET_URL=https://faucet.devnet.aptoslabs.com
+      - APTOS_INDEXER_URL=https://indexer-devnet.aptoslabs.com/v1/graphql
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
+      - PRIVATE_KEY=${PRIVATE_KEY:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ML Service
+  ml:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_TYPE: ml
+    image: aptos-sybil-shield-ml
+    container_name: aptos-sybil-shield-ml
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - API_HOST=api
+      - API_PORT=8000
+      - APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+      - APTOS_FAUCET_URL=https://faucet.devnet.aptoslabs.com
+      - APTOS_INDEXER_URL=https://indexer-devnet.aptoslabs.com/v1/graphql
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
+      - PRIVATE_KEY=${PRIVATE_KEY:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: ml
+    restart: unless-stopped
+
+  # Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_TYPE: dashboard
+    image: aptos-sybil-shield-dashboard
+    container_name: aptos-sybil-shield-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_APTOS_NETWORK=devnet
+      - REACT_APP_CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
+    volumes:
+      - ./dashboard/frontend:/app/dashboard/frontend
+    command: dashboard
+    restart: unless-stopped
+
+  # Move Compiler (for development and testing)
+  move-compiler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_TYPE: move
+    image: aptos-sybil-shield-move
+    container_name: aptos-sybil-shield-move
+    environment:
+      - APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+      - APTOS_FAUCET_URL=https://faucet.devnet.aptoslabs.com
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
+      - PRIVATE_KEY=${PRIVATE_KEY:-}
+    volumes:
+      - ./on-chain/move:/app/on-chain/move
+    command: compile-move
+    profiles:
+      - dev
+
+volumes:
+  data:
+  logs:
