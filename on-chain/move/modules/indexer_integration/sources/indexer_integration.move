@@ -354,7 +354,7 @@ module aptos_sybil_shield::indexer_integration {
     public entry fun submit_data(
         indexer: &signer,
         data_type: u8,
-        data_hash: vector<u8>,
+        _data_hash: vector<u8>,
         target_addresses: vector<address>
     ) acquires IndexerConfig, IndexerRegistration, IndexerSubmission, IndexerEventHandle {
         let indexer_addr = signer::address_of(indexer);

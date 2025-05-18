@@ -45,6 +45,9 @@ RUN cat <<'ENDOFSCRIPT' > /aptos-sybil-shield/deploy.sh
 #!/bin/bash
 set -e
 
+
+export APTOS_PROMPT_DISABLED=true
+
 echo "Preparing Move sources directory..."
 
 # Clear the sources directory
@@ -285,16 +288,17 @@ publish_modules() {
     log_info "Publishing Move modules to devnet..."
     # Check if the --profile flag is supported
     if aptos move publish --help | grep -q -- "--profile"; then
-        aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
+        yes | aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS" --profile "$PROFILE"
     else
         # Older CLI versions
         log_info "Using CLI without profile support for publishing..."
-        aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS"
+        yes | aptos move publish --named-addresses aptos_sybil_shield="$ACCOUNT_ADDRESS"
     fi
     
     log_success "AptosSybilShield has been successfully deployed to Aptos devnet!"
     log_success "Account address: $ACCOUNT_ADDRESS"
 }
+
 
 initialize_module() {
     local module_name=$1
@@ -302,15 +306,16 @@ initialize_module() {
     
     # Check if the --profile flag is supported
     if aptos move run --help | grep -q -- "--profile"; then
-        aptos move run \
+        yes | aptos move run \
             --function-id "$ACCOUNT_ADDRESS::${module_name}::initialize" \
             --profile "$PROFILE"
     else
         # Older CLI versions
-        aptos move run \
+        yes | aptos move run \
             --function-id "$ACCOUNT_ADDRESS::${module_name}::initialize"
     fi
 }
+
 
 initialize_modules() {
     log_info "Initializing modules..."
