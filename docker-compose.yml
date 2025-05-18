@@ -97,6 +97,7 @@ services:
       - APTOS_FAUCET_URL=https://faucet.devnet.aptoslabs.com
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
       - PRIVATE_KEY=${PRIVATE_KEY:-}
+      - APTOS_PROMPT_DISABLED=true
     volumes:
       - ./on-chain/move:/app/on-chain/move
     command: compile-move
@@ -117,6 +118,7 @@ services:
     environment:
       - ACCOUNT_ADDRESS=${CONTRACT_ADDRESS:-}
       - PRIVATE_KEY=${PRIVATE_KEY:-}
+      - APTOS_PROMPT_DISABLED=true
     profiles:
       - deploy
 
