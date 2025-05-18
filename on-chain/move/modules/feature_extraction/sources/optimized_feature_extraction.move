@@ -408,7 +408,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
         };
     }
     
-    #[view]
+    // #[view]
     public fun get_feature_value(addr: address, feature_type: u8, feature_name: String): u64 acquires FeatureData {
         // Verify caller has reader role - commented out for view function
         // assert_has_role(signer::address_of(reader), ROLE_READER);
@@ -433,7 +433,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
         0 // Return 0 if feature not found
     }
     
-    #[view]
+    // #[view]
     public fun get_all_features(addr: address): (vector<u8>, vector<String>, vector<u64>) acquires FeatureData {
         // Verify caller has reader role - commented out for view function
         // assert_has_role(signer::address_of(reader), ROLE_READER);
@@ -458,7 +458,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
         (feature_types, feature_names, feature_values)
     }
     
-    #[view]
+    // #[view]
     public fun is_extractor_authorized(extractor: address): bool acquires Roles {
         assert!(exists<Roles>(@aptos_sybil_shield), error::not_found(E_NOT_INITIALIZED));
         let roles = borrow_global<Roles>(@aptos_sybil_shield);
@@ -466,7 +466,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
         table::contains(&roles.extractor_roles, extractor)
     }
     
-    #[view]
+    // #[view]
     public fun get_last_update_timestamp(addr: address): u64 acquires FeatureData {
         if (!exists<FeatureData>(addr)) {
             return 0
@@ -476,7 +476,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
         feature_data.last_updated
     }
     
-    #[view]
+    // #[view]
     public fun is_batch_events_enabled(): bool acquires FeatureConfig {
         let config_addr = @aptos_sybil_shield;
         assert!(exists<FeatureConfig>(config_addr), error::not_found(E_NOT_INITIALIZED));
