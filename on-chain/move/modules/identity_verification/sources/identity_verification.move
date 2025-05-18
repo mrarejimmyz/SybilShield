@@ -322,7 +322,7 @@ module aptos_sybil_shield::identity_verification {
     public entry fun renew_verification(
         account: &signer,
         verification_data: vector<u8>
-    ) acquires IdentityVerification, VerificationConfig, VerificationEventHandle {
+    ) acquires IdentityVerification, VerificationEventHandle {
         let addr = signer::address_of(account);
         let current_time = timestamp::now_seconds();
         
