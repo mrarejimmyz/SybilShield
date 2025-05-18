@@ -386,7 +386,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
                 FeatureUpdateEvent {
                     target_addr,
                     feature_type: 0, // 0 indicates batch update
-                    feature_name: string::utf8(b"batch_update"),
+                    feature_name: std::string::utf8(b"batch_update"),
                     feature_value: features_updated,
                     timestamp: now,
                 }
