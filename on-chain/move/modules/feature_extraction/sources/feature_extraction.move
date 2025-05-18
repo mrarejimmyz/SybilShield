@@ -190,11 +190,6 @@ module aptos_sybil_shield::feature_extraction {
             let features = vector::empty<Feature>();
             vector::push_back(&mut features, feature);
             
-            let feature_data = FeatureData {
-                address: target_addr,
-                features,
-                last_updated: now,
-            };
             
             // Move to global storage (this requires special handling for devnet)
             // In devnet, we need to use a resource account or have the target account sign

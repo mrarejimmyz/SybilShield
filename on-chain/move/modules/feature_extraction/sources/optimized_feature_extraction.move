@@ -135,7 +135,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
     }
     
     /// Create a resource account for devnet compatibility
-    public entry fun create_resource_account(admin: &signer, seed: vector<u8>): address {
+    public entry fun create_resource_account(admin: &signer, seed: vector<u8>): address acquires Roles {
         let admin_addr = signer::address_of(admin);
         
         // Verify admin role
@@ -288,11 +288,6 @@ module aptos_sybil_shield::optimized_feature_extraction {
             let features = table::new<FeatureKey, Feature>();
             table::add(&mut features, feature_key, feature);
             
-            let feature_data = FeatureData {
-                address: target_addr,
-                features,
-                last_updated: now,
-            };
             
             // Handle resource account for devnet compatibility
             // This would use the resource account capability in a real implementation
@@ -354,19 +349,6 @@ module aptos_sybil_shield::optimized_feature_extraction {
         
         // Initialize or get feature data
         if (!exists<FeatureData>(target_addr)) {
-            // Create new feature data with empty table
-            let features = table::new<FeatureKey, Feature>();
-            
-            let feature_data = FeatureData {
-                address: target_addr,
-                features,
-                last_updated: now,
-            };
-            
-            // Handle resource account for devnet compatibility
-            // This would use the resource account capability in a real implementation
-            // For this optimization example, we'll assume it's handled
-        };
         
         // Get mutable reference to feature data
         let feature_data = borrow_global_mut<FeatureData>(target_addr);
@@ -427,7 +409,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
     }
     
     #[view]
-    public fun get_feature_value(addr: address, feature_type: u8, feature_name: String): u64 acquires FeatureData, Roles {
+    public fun get_feature_value(addr: address, feature_type: u8, feature_name: String): u64 acquires FeatureData {
         // Verify caller has reader role - commented out for view function
         // assert_has_role(signer::address_of(reader), ROLE_READER);
         
@@ -452,7 +434,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
     }
     
     #[view]
-    public fun get_all_features(addr: address): (vector<u8>, vector<String>, vector<u64>) acquires FeatureData, Roles {
+    public fun get_all_features(addr: address): (vector<u8>, vector<String>, vector<u64>) acquires FeatureData {
         // Verify caller has reader role - commented out for view function
         // assert_has_role(signer::address_of(reader), ROLE_READER);
         
@@ -464,7 +446,7 @@ module aptos_sybil_shield::optimized_feature_extraction {
             return (feature_types, feature_names, feature_values)
         };
         
-        let feature_data = borrow_global<FeatureData>(addr);
+        let _feature_data = borrow_global<FeatureData>(addr);
         
         // This is a simplified implementation since we can't iterate over Table in Move
         // In a real implementation, we would need to maintain a separate vector of keys
