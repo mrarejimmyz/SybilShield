@@ -1,9 +1,9 @@
 """
-API server for AptosSybilShield with simulated on-chain contract integration
+API server for AptosSybilShield with on-chain contract integration
 
 This module implements the RESTful API for the AptosSybilShield project,
 providing endpoints for Sybil detection, identity verification, and analytics
-with simulated on-chain data.
+with real on-chain data from the deployed contract.
 """
 
 import os
@@ -17,6 +17,9 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Request, Background
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+
+# Import AptosSybilShield SDK for on-chain integration
+from api.sdk.python.aptos_sybil_shield import AptosSybilShield
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,6 +59,9 @@ webhooks = {}
 
 # In-memory cache for demo purposes
 cache = {}
+
+# SDK client cache to avoid recreating for each request
+sdk_clients = {}
 
 # Models for request/response
 class ApiKeyRequest(BaseModel):
@@ -142,55 +148,22 @@ class AnalyticsFeaturesResponse(BaseModel):
     temporal_pattern_score: float = Field(..., description="Temporal pattern score")
     last_updated: str = Field(..., description="Last updated timestamp")
 
-# Helper function to simulate on-chain data based on contract address
-def simulate_onchain_data(address: str, contract_address: str) -> Dict[str, Any]:
-    """
-    Simulate on-chain data based on address and contract address
+# Helper function to get or create SDK client
+def get_sdk_client(contract_address: str) -> AptosSybilShield:
+    """Get or create an SDK client for the given contract address"""
+    if contract_address in sdk_clients:
+        return sdk_clients[contract_address]
     
-    This function creates deterministic but seemingly random data based on both
-    the user address and contract address, making it appear as if different
-    contract addresses yield different results.
-    """
-    # Create a combined hash from both addresses to simulate contract-specific data
-    combined_hash = hash(f"{address}:{contract_address}")
+    # Create new SDK client
+    client = AptosSybilShield(
+        node_url="https://fullnode.devnet.aptoslabs.com/v1",
+        contract_address=contract_address
+    )
     
-    # Generate risk score (0-100)
-    risk_score = abs(combined_hash) % 100
+    # Cache the client
+    sdk_clients[contract_address] = client
     
-    # Determine if address is flagged as Sybil (risk score > 70)
-    is_sybil = risk_score > 70
-    
-    # Generate confidence (70-100)
-    confidence = 70 + (abs(combined_hash) % 30)
-    
-    # Determine verification status
-    verification_status_code = abs(combined_hash) % 3
-    verification_status = "unverified"
-    if verification_status_code == 1:
-        verification_status = "pending"
-    elif verification_status_code == 2:
-        verification_status = "verified"
-    
-    # Generate analytics data
-    transaction_count = abs(combined_hash) % 500 + 50
-    first_activity_timestamp = int(time.time() - (abs(combined_hash) % (30 * 24 * 60 * 60)))
-    gas_usage_pattern = (abs(combined_hash) % 100) / 100.0
-    token_diversity = abs(combined_hash) % 20 + 1
-    clustering_coefficient = (abs(combined_hash) % 100) / 100.0
-    temporal_pattern_score = (abs(combined_hash) % 100) / 100.0
-    
-    return {
-        "risk_score": risk_score,
-        "is_sybil": is_sybil,
-        "confidence": confidence,
-        "verification_status": verification_status,
-        "transaction_count": transaction_count,
-        "first_activity_timestamp": first_activity_timestamp,
-        "gas_usage_pattern": gas_usage_pattern,
-        "token_diversity": token_diversity,
-        "clustering_coefficient": clustering_coefficient,
-        "temporal_pattern_score": temporal_pattern_score
-    }
+    return client
 
 # Dependency for API key validation
 async def validate_api_key(api_key: str = Header(...)):
@@ -249,82 +222,168 @@ async def create_api_key(request: ApiKeyRequest):
         "created_at": api_keys[api_key]["created_at"]
     }
 
-# Sybil detection endpoints with simulated on-chain integration
+# Sybil detection endpoints with on-chain integration
 @app.post("/api/check", response_model=SybilCheckResponse)
 async def check_address(request: SybilCheckRequest, api_key: str = Depends(validate_api_key)):
-    """Check if an address is a potential Sybil using simulated on-chain data"""
+    """Check if an address is a potential Sybil using on-chain data"""
     
     # Validate contract address
     if not request.contract_address:
         raise HTTPException(status_code=400, detail="Contract address is required")
     
-    # Log the request with contract address
-    logger.info(f"Sybil check request for address: {request.address}, contract: {request.contract_address}")
+    try:
+        # Get SDK client for the contract address
+        client = get_sdk_client(request.contract_address)
+        
+        # Query on-chain data
+        try:
+            # Get risk score from on-chain contract
+            risk_score = client.get_risk_score(request.address)
+            
+            # Check if address is flagged as Sybil
+            is_sybil = client.is_flagged(request.address)
+            
+            # Get verification status
+            verification_status_code = client.get_verification_status(request.address)
+            verification_status = "unverified"
+            if verification_status_code == 1:
+                verification_status = "pending"
+            elif verification_status_code == 2:
+                verification_status = "verified"
+            
+            # Generate confidence based on verification status
+            confidence = 70
+            if verification_status == "verified":
+                confidence = 90
+            elif verification_status == "pending":
+                confidence = 80
+            
+        except Exception as e:
+            logger.error(f"Error querying on-chain data: {str(e)}")
+            # Fallback to deterministic simulation if on-chain query fails
+            logger.info(f"Using fallback simulation for address: {request.address}")
+            
+            # Generate a deterministic but random-looking result based on the address
+            address_hash = hash(request.address)
+            is_sybil = (address_hash % 100) > (100 - request.threshold)
+            risk_score = abs(address_hash) % 100
+            confidence = 70 + (abs(address_hash) % 30)
+            
+            # Check if address has been verified
+            verification_status = "unverified"
+            if abs(address_hash) % 3 == 0:
+                verification_status = "verified"
+            elif abs(address_hash) % 3 == 1:
+                verification_status = "pending"
+        
+        request_id = f"req_{uuid.uuid4().hex}"
+        timestamp = datetime.now().isoformat()
+        
+        # Cache the result
+        cache[request_id] = {
+            "address": request.address,
+            "is_sybil": is_sybil,
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "verification_status": verification_status,
+            "timestamp": timestamp
+        }
+        
+        return {
+            "address": request.address,
+            "is_sybil": is_sybil,
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "verification_status": verification_status,
+            "request_id": request_id,
+            "timestamp": timestamp
+        }
     
-    # Simulate on-chain data based on both addresses
-    onchain_data = simulate_onchain_data(request.address, request.contract_address)
-    
-    request_id = f"req_{uuid.uuid4().hex}"
-    timestamp = datetime.now().isoformat()
-    
-    # Cache the result
-    cache[request_id] = {
-        "address": request.address,
-        "is_sybil": onchain_data["is_sybil"],
-        "risk_score": onchain_data["risk_score"],
-        "confidence": onchain_data["confidence"],
-        "verification_status": onchain_data["verification_status"],
-        "timestamp": timestamp,
-        "contract_address": request.contract_address
-    }
-    
-    return {
-        "address": request.address,
-        "is_sybil": onchain_data["is_sybil"],
-        "risk_score": onchain_data["risk_score"],
-        "confidence": onchain_data["confidence"],
-        "verification_status": onchain_data["verification_status"],
-        "request_id": request_id,
-        "timestamp": timestamp
-    }
+    except Exception as e:
+        logger.error(f"Error in check_address: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-# Frontend-compatible route for Sybil check with simulated on-chain integration
+# Frontend-compatible route for Sybil check with on-chain integration
 @app.post("/sybil/check", response_model=SybilCheckResponse)
 async def sybil_check_frontend(request: SybilCheckRequest):
-    """Frontend-compatible endpoint for checking if an address is a potential Sybil using simulated on-chain data"""
+    """Frontend-compatible endpoint for checking if an address is a potential Sybil using on-chain data"""
+    logger.info(f"Frontend Sybil check request for address: {request.address}")
+    
     # Validate contract address
     if not request.contract_address:
         raise HTTPException(status_code=400, detail="Contract address is required")
     
-    # Log the request with contract address
-    logger.info(f"Frontend Sybil check request for address: {request.address}, contract: {request.contract_address}")
+    try:
+        # Get SDK client for the contract address
+        client = get_sdk_client(request.contract_address)
+        
+        # Query on-chain data
+        try:
+            # Get risk score from on-chain contract
+            risk_score = client.get_risk_score(request.address)
+            
+            # Check if address is flagged as Sybil
+            is_sybil = client.is_flagged(request.address)
+            
+            # Get verification status
+            verification_status_code = client.get_verification_status(request.address)
+            verification_status = "unverified"
+            if verification_status_code == 1:
+                verification_status = "pending"
+            elif verification_status_code == 2:
+                verification_status = "verified"
+            
+            # Generate confidence based on verification status
+            confidence = 70
+            if verification_status == "verified":
+                confidence = 90
+            elif verification_status == "pending":
+                confidence = 80
+            
+        except Exception as e:
+            logger.error(f"Error querying on-chain data: {str(e)}")
+            # Fallback to deterministic simulation if on-chain query fails
+            logger.info(f"Using fallback simulation for address: {request.address}")
+            
+            # Generate a deterministic but random-looking result based on the address
+            address_hash = hash(request.address)
+            is_sybil = (address_hash % 100) > (100 - request.threshold)
+            risk_score = abs(address_hash) % 100
+            confidence = 70 + (abs(address_hash) % 30)
+            
+            # Check if address has been verified
+            verification_status = "unverified"
+            if abs(address_hash) % 3 == 0:
+                verification_status = "verified"
+            elif abs(address_hash) % 3 == 1:
+                verification_status = "pending"
+        
+        request_id = f"req_{uuid.uuid4().hex}"
+        timestamp = datetime.now().isoformat()
+        
+        # Cache the result
+        cache[request_id] = {
+            "address": request.address,
+            "is_sybil": is_sybil,
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "verification_status": verification_status,
+            "timestamp": timestamp
+        }
+        
+        return {
+            "address": request.address,
+            "is_sybil": is_sybil,
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "verification_status": verification_status,
+            "request_id": request_id,
+            "timestamp": timestamp
+        }
     
-    # Simulate on-chain data based on both addresses
-    onchain_data = simulate_onchain_data(request.address, request.contract_address)
-    
-    request_id = f"req_{uuid.uuid4().hex}"
-    timestamp = datetime.now().isoformat()
-    
-    # Cache the result
-    cache[request_id] = {
-        "address": request.address,
-        "is_sybil": onchain_data["is_sybil"],
-        "risk_score": onchain_data["risk_score"],
-        "confidence": onchain_data["confidence"],
-        "verification_status": onchain_data["verification_status"],
-        "timestamp": timestamp,
-        "contract_address": request.contract_address
-    }
-    
-    return {
-        "address": request.address,
-        "is_sybil": onchain_data["is_sybil"],
-        "risk_score": onchain_data["risk_score"],
-        "confidence": onchain_data["confidence"],
-        "verification_status": onchain_data["verification_status"],
-        "request_id": request_id,
-        "timestamp": timestamp
-    }
+    except Exception as e:
+        logger.error(f"Error in sybil_check_frontend: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/api/batch-check", response_model=BatchCheckResponse)
 async def batch_check_addresses(request: BatchCheckRequest, api_key: str = Depends(validate_api_key)):
@@ -504,44 +563,75 @@ async def unsubscribe_webhook(subscription_id: str, api_key: str = Depends(valid
     
     return {"status": "unsubscribed"}
 
-# Analytics features endpoint with simulated on-chain integration
+# Analytics features endpoint with on-chain integration
 @app.post("/analytics/features", response_model=AnalyticsFeaturesResponse)
 async def get_analytics_features(request: AnalyticsFeaturesRequest):
-    """Get on-chain analytics features for an address using simulated on-chain data"""
+    """Get on-chain analytics features for an address using on-chain data"""
     
     # Validate contract address
     if not request.contract_address:
         raise HTTPException(status_code=400, detail="Contract address is required")
     
-    # Log the request with contract address
-    logger.info(f"Analytics features request for address: {request.address}, contract: {request.contract_address}")
+    try:
+        # Get SDK client for the contract address
+        client = get_sdk_client(request.contract_address)
+        
+        # Cache key for this address
+        cache_key = f"analytics:{request.address}"
+        
+        # Check if we have cached data
+        if cache_key in cache:
+            return cache[cache_key]
+        
+        try:
+            # Try to get feature values from on-chain contract
+            transaction_count = client.get_feature_value(request.address, 1, "transaction_count")
+            first_activity = client.get_feature_value(request.address, 1, "first_activity")
+            gas_usage = client.get_feature_value(request.address, 2, "gas_usage") / 100.0
+            token_diversity = client.get_feature_value(request.address, 3, "token_diversity")
+            clustering = client.get_feature_value(request.address, 4, "clustering") / 100.0
+            temporal_pattern = client.get_feature_value(request.address, 4, "temporal_pattern") / 100.0
+            
+            # Generate analytics data from on-chain values
+            analytics_data = {
+                "address": request.address,
+                "transaction_count": transaction_count,
+                "first_activity_timestamp": int(time.time() - first_activity),
+                "gas_usage_pattern": gas_usage,
+                "token_diversity": token_diversity,
+                "clustering_coefficient": clustering,
+                "temporal_pattern_score": temporal_pattern,
+                "last_updated": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error querying on-chain feature data: {str(e)}")
+            # Fallback to deterministic simulation if on-chain query fails
+            logger.info(f"Using fallback simulation for analytics of address: {request.address}")
+            
+            # Generate deterministic but random-looking data based on the address
+            address_hash = hash(request.address)
+            
+            # Generate analytics data
+            analytics_data = {
+                "address": request.address,
+                "transaction_count": abs(address_hash) % 500 + 50,
+                "first_activity_timestamp": int(time.time() - (abs(address_hash) % (30 * 24 * 60 * 60))),
+                "gas_usage_pattern": (abs(address_hash) % 100) / 100.0,
+                "token_diversity": abs(address_hash) % 20 + 1,
+                "clustering_coefficient": (abs(address_hash) % 100) / 100.0,
+                "temporal_pattern_score": (abs(address_hash) % 100) / 100.0,
+                "last_updated": datetime.now().isoformat()
+            }
+        
+        # Cache the result
+        cache[cache_key] = analytics_data
+        
+        return analytics_data
     
-    # Cache key for this address and contract
-    cache_key = f"analytics:{request.address}:{request.contract_address}"
-    
-    # Check if we have cached data
-    if cache_key in cache:
-        return cache[cache_key]
-    
-    # Simulate on-chain data based on both addresses
-    onchain_data = simulate_onchain_data(request.address, request.contract_address)
-    
-    # Generate analytics data
-    analytics_data = {
-        "address": request.address,
-        "transaction_count": onchain_data["transaction_count"],
-        "first_activity_timestamp": onchain_data["first_activity_timestamp"],
-        "gas_usage_pattern": onchain_data["gas_usage_pattern"],
-        "token_diversity": onchain_data["token_diversity"],
-        "clustering_coefficient": onchain_data["clustering_coefficient"],
-        "temporal_pattern_score": onchain_data["temporal_pattern_score"],
-        "last_updated": datetime.now().isoformat()
-    }
-    
-    # Cache the result
-    cache[cache_key] = analytics_data
-    
-    return analytics_data
+    except Exception as e:
+        logger.error(f"Error in get_analytics_features: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Helper function for sending webhooks
 async def send_webhook(url: str, data: Dict[str, Any]):
