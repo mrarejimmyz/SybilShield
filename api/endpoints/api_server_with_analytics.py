@@ -1,5 +1,5 @@
 """
-API server for AptosSybilShield with additional routes for frontend compatibility
+API server for AptosSybilShield
 
 This module implements the RESTful API for the AptosSybilShield project,
 providing endpoints for Sybil detection, identity verification, and analytics.
@@ -82,7 +82,6 @@ class SybilCheckRequest(BaseModel):
     address: str = Field(..., description="Aptos address to check")
     threshold: Optional[int] = Field(70, description="Risk threshold (0-100)")
     include_features: Optional[bool] = Field(False, description="Whether to include feature details")
-    contract_address: Optional[str] = Field(None, description="Contract address")
 
 class SybilCheckResponse(BaseModel):
     address: str = Field(..., description="Checked address")
@@ -152,7 +151,7 @@ class AnalyticsFeaturesResponse(BaseModel):
     temporal_pattern_score: float = Field(..., description="Temporal pattern score")
     last_updated: str = Field(..., description="Last updated timestamp")
 
-# Dependency for API key validation - Fixed to avoid multiple default values
+# Dependency for API key validation
 async def validate_api_key(api_key: str = Header(...)):
     if api_key not in api_keys:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -168,16 +167,6 @@ async def validate_api_key(api_key: str = Header(...)):
         
     if request_counts[minute_key] > api_keys[api_key]["rate_limit"]:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
-    return api_key
-
-# Optional API key validation for frontend compatibility - Fixed to use a separate function
-async def optional_api_key(api_key: str = Header(None)):
-    if api_key is None:
-        return "test_api_key"  # Use default API key for frontend requests
-    
-    if api_key not in api_keys:
-        raise HTTPException(status_code=401, detail="Invalid API key")
     
     return api_key
 
@@ -215,49 +204,6 @@ async def check_address(request: SybilCheckRequest, api_key: str = Depends(valid
     """Check if an address is a potential Sybil"""
     # In a real implementation, this would call the Sybil detection module
     # For hackathon purposes, we'll simulate a response
-    
-    # Generate a deterministic but random-looking result based on the address
-    address_hash = hash(request.address)
-    is_sybil = (address_hash % 100) > (100 - request.threshold)
-    risk_score = abs(address_hash) % 100
-    confidence = 70 + (abs(address_hash) % 30)
-    
-    # Check if address has been verified
-    verification_status = "unverified"
-    if abs(address_hash) % 3 == 0:
-        verification_status = "verified"
-    elif abs(address_hash) % 3 == 1:
-        verification_status = "pending"
-    
-    request_id = f"req_{uuid.uuid4().hex}"
-    timestamp = datetime.now().isoformat()
-    
-    # Cache the result
-    cache[request_id] = {
-        "address": request.address,
-        "is_sybil": is_sybil,
-        "risk_score": risk_score,
-        "confidence": confidence,
-        "verification_status": verification_status,
-        "timestamp": timestamp
-    }
-    
-    return {
-        "address": request.address,
-        "is_sybil": is_sybil,
-        "risk_score": risk_score,
-        "confidence": confidence,
-        "verification_status": verification_status,
-        "request_id": request_id,
-        "timestamp": timestamp
-    }
-
-# New frontend-compatible route for Sybil check
-@app.post("/sybil/check", response_model=SybilCheckResponse)
-async def sybil_check_frontend(request: SybilCheckRequest):
-    """Frontend-compatible endpoint for checking if an address is a potential Sybil"""
-    # This endpoint proxies to the main /api/check endpoint logic but doesn't require API key
-    logger.info(f"Frontend Sybil check request for address: {request.address}")
     
     # Generate a deterministic but random-looking result based on the address
     address_hash = hash(request.address)
@@ -473,7 +419,7 @@ async def unsubscribe_webhook(subscription_id: str, api_key: str = Depends(valid
     
     return {"status": "unsubscribed"}
 
-# Analytics features endpoint
+# New analytics features endpoint
 @app.post("/analytics/features", response_model=AnalyticsFeaturesResponse)
 async def get_analytics_features(request: AnalyticsFeaturesRequest):
     """Get on-chain analytics features for an address"""

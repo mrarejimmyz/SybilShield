@@ -9,21 +9,21 @@ import VerificationList from '@/components/dashboard/VerificationList';
 export default function Home() {
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col space-y-2">
-          <h1 className="text-3xl font-bold">SybilShield Dashboard</h1>
-          <p className="text-text-secondary">Monitor and manage Sybil protection for your network</p>
+      <div className="page-header">
+        <h1 className="page-title">SybilShield Dashboard</h1>
+        <p className="page-description">Monitor and manage Sybil protection for your network</p>
+      </div>
+      
+      <DashboardStats />
+      
+      <div className="section-divider"></div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SybilAnalytics />
         </div>
-        
-        <DashboardStats />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <SybilAnalytics />
-          </div>
-          <div>
-            <VerificationList />
-          </div>
+        <div>
+          <VerificationList />
         </div>
       </div>
     </DashboardLayout>

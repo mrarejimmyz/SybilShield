@@ -115,27 +115,23 @@ const featureImportance = [
 
 export default function SybilAnalytics() {
   return (
-    <div className="space-y-6">
-      <div className="card p-6">
-        <h3 className="text-xl font-semibold mb-2">Sybil Detection Analytics</h3>
-        <p className="text-text-secondary mb-6">Overview of detected Sybil accounts vs. legitimate accounts over time</p>
-        
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">Sybil Detection Analytics</h3>
+        <p className="card-description">Overview of detected Sybil accounts vs. legitimate accounts over time</p>
+      </div>
+      
+      <div className="card-content">
         <TabGroup>
-          <TabList className="flex space-x-1 rounded-xl bg-background p-1 mb-6">
-            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
-              Account Growth
-            </Tab>
-            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
-              Risk Distribution
-            </Tab>
-            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
-              Feature Importance
-            </Tab>
+          <TabList className="tab-list">
+            <Tab className="tab">Account Growth</Tab>
+            <Tab className="tab">Risk Distribution</Tab>
+            <Tab className="tab">Feature Importance</Tab>
           </TabList>
           
           <TabPanels>
             <TabPanel>
-              <div className="h-80 mt-4">
+              <div className="chart-container">
                 <AreaChart
                   data={sybilDetectionData}
                   index="date"
@@ -151,7 +147,7 @@ export default function SybilAnalytics() {
             </TabPanel>
             
             <TabPanel>
-              <div className="h-80 mt-4">
+              <div className="chart-container">
                 <BarChart
                   data={riskScoreDistribution}
                   index="riskScore"
@@ -164,13 +160,13 @@ export default function SybilAnalytics() {
                   className="h-full"
                 />
               </div>
-              <p className="mt-4 text-center text-sm text-text-tertiary">
+              <p className="text-center text-sm text-text-tertiary">
                 Risk Score Distribution (0-100)
               </p>
             </TabPanel>
             
             <TabPanel>
-              <div className="h-80 mt-4">
+              <div className="chart-container">
                 <BarChart
                   data={featureImportance}
                   index="feature"
@@ -184,7 +180,7 @@ export default function SybilAnalytics() {
                   className="h-full"
                 />
               </div>
-              <p className="mt-4 text-center text-sm text-text-tertiary">
+              <p className="text-center text-sm text-text-tertiary">
                 Feature Importance in Sybil Detection Model
               </p>
             </TabPanel>
