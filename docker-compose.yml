@@ -113,7 +113,7 @@ services:
     image: aptos-sybil-shield-move-deployment
     container_name: aptos-sybil-shield-move-deployment
     volumes:
-      - ./on-chain/move/modules:/modules  # Only mount the modules directory, not scripts
+      - ./on-chain/move:/aptos-sybil-shield/on-chain/move  # Only mount the modules directory, not scripts
       - ./shared:/shared  # For deployment information
     environment:
       - ACCOUNT_ADDRESS=${CONTRACT_ADDRESS:-}
