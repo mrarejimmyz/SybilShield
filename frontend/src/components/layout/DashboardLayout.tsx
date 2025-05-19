@@ -9,19 +9,17 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-
-  
   return (
-    <div className="flex h-screen bg-background">
+    <div className="main-layout">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="main-content">
         <Header />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 transition-all">
-          <div className="max-w-7xl mx-auto">
+        <main className="main-body">
+          <div className="page-container">
             {children}
           </div>
         </main>
-        <footer className="py-3 px-6 text-center text-text-tertiary text-sm border-t border-text-tertiary/10">
+        <footer className="footer">
           <p>© 2025 SybilShield · Sybil Protection System</p>
         </footer>
       </div>

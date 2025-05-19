@@ -58,7 +58,7 @@ RUN pip install --upgrade pip \
     pytest
 
 # Install Node.js dependencies for dashboard
-RUN cd /app/dashboard/frontend && npm install
+RUN cd /app/frontend && npm install
 
 # Set up entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/

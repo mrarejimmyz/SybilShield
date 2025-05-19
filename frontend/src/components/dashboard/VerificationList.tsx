@@ -23,29 +23,27 @@ const statusIcons = {
 };
 
 const VerificationCard = ({ address, status, verificationType, timestamp }: VerificationCardProps) => (
-  <div className="card p-4 hover-scale transition-all">
-    <div className="flex justify-between items-center">
+  <div className="verification-card">
+    <div className="verification-header">
       <div>
         <p className="text-sm font-medium text-text-secondary">Address</p>
         <p className="text-text-primary truncate max-w-xs font-mono text-sm">{address}</p>
       </div>
-      <div className={`px-3 py-1 rounded-full ${statusColors[status]}`}>
+      <div className={`verification-status ${statusColors[status]}`}>
         <div className="flex items-center justify-center">
           <span className="mr-1.5">{statusIcons[status]}</span>
           <span className="text-sm font-medium capitalize">{status}</span>
         </div>
       </div>
     </div>
-    <div className="mt-4 pt-3 border-t border-text-tertiary/10">
-      <div className="flex justify-between">
-        <div>
-          <p className="text-xs text-text-tertiary">Verification Type</p>
-          <p className="text-sm font-medium">{verificationType}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-text-tertiary">Timestamp</p>
-          <p className="text-sm">{new Date(timestamp).toLocaleString()}</p>
-        </div>
+    <div className="verification-footer">
+      <div>
+        <p className="text-xs text-text-tertiary">Verification Type</p>
+        <p className="text-sm font-medium">{verificationType}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs text-text-tertiary">Timestamp</p>
+        <p className="text-sm">{new Date(timestamp).toLocaleString()}</p>
       </div>
     </div>
   </div>
@@ -81,13 +79,13 @@ export default function VerificationList() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-semibold mb-2">Recent Verifications</h3>
-        <p className="text-text-secondary">Latest user verification activities</p>
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">Recent Verifications</h3>
+        <p className="card-description">Latest user verification activities</p>
       </div>
       
-      <div className="space-y-4">
+      <div className="card-content">
         {verifications.map((verification, index) => (
           <VerificationCard 
             key={index}
@@ -99,7 +97,7 @@ export default function VerificationList() {
         ))}
       </div>
       
-      <div className="pt-2">
+      <div className="card-footer">
         <button className="btn btn-secondary w-full">
           View All Verifications
         </button>
