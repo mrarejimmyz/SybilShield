@@ -5,6 +5,19 @@ import { Card, Title, Text, Button, TextInput, Select, SelectItem, Badge } from 
 import { useApi } from '@/lib/api-context';
 import { CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 
+interface VerificationData {
+  verification_id: string;
+  address: string;
+  verification_type: string;
+  instructions: string;
+  expires_at: string;
+}
+
+interface VerificationStatus {
+  status: 'verified' | 'pending' | 'failed';
+  timestamp: string;
+}
+
 const verificationTypes = [
   { value: 'social_twitter', label: 'Twitter Verification' },
   { value: 'social_github', label: 'GitHub Verification' },
@@ -19,15 +32,15 @@ export default function VerificationPage() {
   const [address, setAddress] = useState('');
   const [verificationType, setVerificationType] = useState('social_twitter');
   const [verificationId, setVerificationId] = useState<string | null>(null);
-  const [verificationData, setVerificationData] = useState<any>(null);
+  const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
   const [proof, setProof] = useState('');
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<VerificationStatus | null>(null);
   
   const handleStartVerification = async () => {
     if (!address.trim()) return;
     
     try {
-      const result = await startVerification(address, verificationType);
+      const result = await startVerification(address, verificationType) as VerificationData;
       setVerificationId(result.verification_id);
       setVerificationData(result);
     } catch (err) {
@@ -39,7 +52,7 @@ export default function VerificationPage() {
     if (!verificationId) return;
     
     try {
-      const result = await checkVerificationStatus(verificationId);
+      const result = await checkVerificationStatus(verificationId) as VerificationStatus;
       setStatus(result);
     } catch (err) {
       console.error('Error checking status:', err);
@@ -51,7 +64,7 @@ export default function VerificationPage() {
     
     try {
       const result = await completeVerification(verificationId, { proof });
-      setStatus(result);
+      setStatus(result as VerificationStatus);
     } catch (err) {
       console.error('Error completing verification:', err);
     }
