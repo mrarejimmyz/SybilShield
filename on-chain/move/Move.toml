@@ -4,7 +4,8 @@ version = "0.1.0"
 authors = ["AptosSybilShield Team"]
 
 [addresses]
-aptos_sybil_shield = "0x07bc679220f01a6f23381cf58648ab68c0694a283038698c111395107d2832cc"
+aptos_sybil_shield = "0xe79bb86d89c2a9d56fd3ebd6648dff6ba86b92cdb5075ef2be3ad8a91841b984"
+
 std = "0x1"
 aptos_framework = "0x1"
 aptos_std = "0x1"
