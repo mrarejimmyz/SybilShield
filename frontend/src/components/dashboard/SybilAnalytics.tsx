@@ -4,9 +4,6 @@ import React from 'react';
 import { 
   AreaChart, 
   BarChart, 
-  Card, 
-  Title, 
-  Text, 
   Tab, 
   TabGroup, 
   TabList, 
@@ -119,68 +116,81 @@ const featureImportance = [
 export default function SybilAnalytics() {
   return (
     <div className="space-y-6">
-      <Card>
-        <Title>Sybil Detection Analytics</Title>
-        <Text>Overview of detected Sybil accounts vs. legitimate accounts over time</Text>
+      <div className="card p-6">
+        <h3 className="text-xl font-semibold mb-2">Sybil Detection Analytics</h3>
+        <p className="text-text-secondary mb-6">Overview of detected Sybil accounts vs. legitimate accounts over time</p>
+        
         <TabGroup>
-          <TabList className="mt-4">
-            <Tab>Account Growth</Tab>
-            <Tab>Risk Distribution</Tab>
-            <Tab>Feature Importance</Tab>
+          <TabList className="flex space-x-1 rounded-xl bg-background p-1 mb-6">
+            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
+              Account Growth
+            </Tab>
+            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
+              Risk Distribution
+            </Tab>
+            <Tab className="w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-text-primary ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ui-selected:bg-white ui-selected:shadow ui-selected:text-primary ui-selected:font-semibold ui-not-selected:text-text-secondary ui-not-selected:hover:bg-white/[0.12] ui-not-selected:hover:text-text-primary transition-all">
+              Feature Importance
+            </Tab>
           </TabList>
+          
           <TabPanels>
             <TabPanel>
-              <div className="mt-4 h-80">
+              <div className="h-80 mt-4">
                 <AreaChart
                   data={sybilDetectionData}
                   index="date"
                   categories={['Sybil Accounts', 'Legitimate Accounts']}
-                  colors={['red', 'green']}
+                  colors={['danger', 'success']}
                   valueFormatter={(number) => `${number.toLocaleString()} accounts`}
                   showLegend
                   showGridLines
                   showAnimation
+                  className="h-full"
                 />
               </div>
             </TabPanel>
+            
             <TabPanel>
-              <div className="mt-4 h-80">
+              <div className="h-80 mt-4">
                 <BarChart
                   data={riskScoreDistribution}
                   index="riskScore"
                   categories={['accounts']}
-                  colors={['blue']}
+                  colors={['primary']}
                   valueFormatter={(number) => `${number.toLocaleString()} accounts`}
                   showLegend={false}
                   showGridLines
                   showAnimation
+                  className="h-full"
                 />
               </div>
-              <Text className="mt-2 text-center text-sm text-gray-500">
+              <p className="mt-4 text-center text-sm text-text-tertiary">
                 Risk Score Distribution (0-100)
-              </Text>
+              </p>
             </TabPanel>
+            
             <TabPanel>
-              <div className="mt-4 h-80">
+              <div className="h-80 mt-4">
                 <BarChart
                   data={featureImportance}
                   index="feature"
                   categories={['importance']}
-                  colors={['purple']}
+                  colors={['info']}
                   valueFormatter={(number) => `${number}%`}
                   layout="vertical"
                   showLegend={false}
                   showGridLines
                   showAnimation
+                  className="h-full"
                 />
               </div>
-              <Text className="mt-2 text-center text-sm text-gray-500">
+              <p className="mt-4 text-center text-sm text-text-tertiary">
                 Feature Importance in Sybil Detection Model
-              </Text>
+              </p>
             </TabPanel>
           </TabPanels>
         </TabGroup>
-      </Card>
+      </div>
     </div>
   );
 }
