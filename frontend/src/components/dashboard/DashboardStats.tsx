@@ -2,14 +2,6 @@
 
 import React from 'react';
 import { 
-  Card, 
-  Title, 
-  Text, 
-  Flex, 
-  Metric, 
-  ProgressBar, 
-  Grid, 
-  BadgeDelta, 
   DeltaType 
 } from '@tremor/react';
 import { Shield, AlertTriangle, Users, CheckCircle } from 'lucide-react';
@@ -28,32 +20,42 @@ interface StatCardProps {
 }
 
 const StatCard = ({ title, metric, icon, color, delta, deltaType }: StatCardProps) => (
-  <Card className="max-w-xs mx-auto" decoration="top" decorationColor={color}>
-    <Flex justifyContent="between" alignItems="center">
-      <Text>{title}</Text>
-      <div className={`p-2 rounded-full bg-${color}-100`}>
+  <div className="stats-card hover-scale">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-text-secondary font-medium">{title}</h3>
+      <div className={`stats-icon bg-${color}-100`}>
         {icon}
       </div>
-    </Flex>
-    <Metric className="mt-2">{metric}</Metric>
+    </div>
+    <div className="mb-2">
+      <span className="text-2xl font-semibold">{metric}</span>
+    </div>
     {delta && deltaType && (
-      <Flex className="mt-2">
-        <BadgeDelta deltaType={deltaType}>{delta}</BadgeDelta>
-      </Flex>
+      <div className="flex items-center">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+          deltaType === 'increase' 
+            ? 'bg-success/10 text-success' 
+            : deltaType === 'decrease' 
+              ? 'bg-danger/10 text-danger'
+              : 'bg-info/10 text-info'
+        }`}>
+          {delta}
+        </span>
+      </div>
     )}
-  </Card>
+  </div>
 );
 
 export default function DashboardStats() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold mb-4">System Overview</h2>
-        <Grid numItemsMd={2} numItemsLg={4} className="gap-6">
+        <h2 className="text-2xl font-semibold mb-6">System Overview</h2>
+        <div className="dashboard-grid">
           <StatCard 
             title="Sybil Detection Rate" 
             metric="8.4%" 
-            icon={<Shield className="h-5 w-5 text-blue-600" />}
+            icon={<Shield className="h-5 w-5 text-primary" />}
             color="blue"
             delta="+1.2% from last week"
             deltaType="increase"
@@ -61,7 +63,7 @@ export default function DashboardStats() {
           <StatCard 
             title="Verified Users" 
             metric="12,543" 
-            icon={<CheckCircle className="h-5 w-5 text-green-600" />}
+            icon={<CheckCircle className="h-5 w-5 text-success" />}
             color="green"
             delta="+573 new verifications"
             deltaType="increase"
@@ -69,7 +71,7 @@ export default function DashboardStats() {
           <StatCard 
             title="Alerts" 
             metric="24" 
-            icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+            icon={<AlertTriangle className="h-5 w-5 text-warning" />}
             color="amber"
             delta="-3 from yesterday"
             deltaType="decrease"
@@ -77,49 +79,55 @@ export default function DashboardStats() {
           <StatCard 
             title="Active Users" 
             metric="45,789" 
-            icon={<Users className="h-5 w-5 text-indigo-600" />}
+            icon={<Users className="h-5 w-5 text-info" />}
             color="indigo"
             delta="+12% this month"
             deltaType="increase"
           />
-        </Grid>
+        </div>
       </div>
       
-      <div>
-        <Card>
-          <Title>System Health</Title>
-          <Text>Current status of the Sybil detection system</Text>
-          <div className="mt-4 space-y-4">
-            <div>
-              <Flex justifyContent="between" className="mb-1">
-                <Text>API Performance</Text>
-                <Text>92%</Text>
-              </Flex>
-              <ProgressBar value={92} color="blue" />
+      <div className="card p-6">
+        <h3 className="text-xl font-semibold mb-2">System Health</h3>
+        <p className="text-text-secondary mb-6">Current status of the Sybil detection system</p>
+        <div className="space-y-6">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-text-secondary">API Performance</span>
+              <span className="font-medium">92%</span>
             </div>
-            <div>
-              <Flex justifyContent="between" className="mb-1">
-                <Text>ML Model Accuracy</Text>
-                <Text>87%</Text>
-              </Flex>
-              <ProgressBar value={87} color="green" />
-            </div>
-            <div>
-              <Flex justifyContent="between" className="mb-1">
-                <Text>On-chain Verification</Text>
-                <Text>95%</Text>
-              </Flex>
-              <ProgressBar value={95} color="indigo" />
-            </div>
-            <div>
-              <Flex justifyContent="between" className="mb-1">
-                <Text>Privacy System</Text>
-                <Text>99%</Text>
-              </Flex>
-              <ProgressBar value={99} color="purple" />
+            <div className="progress-bar">
+              <div className="progress-bar-fill bg-primary" style={{ width: '92%' }}></div>
             </div>
           </div>
-        </Card>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-text-secondary">ML Model Accuracy</span>
+              <span className="font-medium">87%</span>
+            </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill bg-success" style={{ width: '87%' }}></div>
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-text-secondary">On-chain Verification</span>
+              <span className="font-medium">95%</span>
+            </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill bg-info" style={{ width: '95%' }}></div>
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-text-secondary">Privacy System</span>
+              <span className="font-medium">99%</span>
+            </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill bg-primary-dark" style={{ width: '99%' }}></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

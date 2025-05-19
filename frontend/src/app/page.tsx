@@ -10,7 +10,10 @@ export default function Home() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <h1 className="text-3xl font-bold">AptosSybilShield Dashboard</h1>
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold">SybilShield Dashboard</h1>
+          <p className="text-text-secondary">Monitor and manage Sybil protection for your network</p>
+        </div>
         
         <DashboardStats />
         

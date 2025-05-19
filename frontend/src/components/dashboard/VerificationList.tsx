@@ -1,8 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Card, Title, Text, Flex, Grid } from '@tremor/react';
-import { Shield, AlertTriangle, Users, CheckCircle, Activity } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 
 interface VerificationCardProps {
   address: string;
@@ -12,44 +11,44 @@ interface VerificationCardProps {
 }
 
 const statusColors = {
-  verified: 'bg-green-100 text-green-800',
-  pending: 'bg-yellow-100 text-yellow-800',
-  rejected: 'bg-red-100 text-red-800'
+  verified: 'bg-success/10 text-success',
+  pending: 'bg-warning/10 text-warning',
+  rejected: 'bg-danger/10 text-danger'
 };
 
 const statusIcons = {
-  verified: <CheckCircle className="h-5 w-5 text-green-600" />,
-  pending: <Activity className="h-5 w-5 text-yellow-600" />,
-  rejected: <AlertTriangle className="h-5 w-5 text-red-600" />
+  verified: <CheckCircle className="h-4 w-4 text-success" />,
+  pending: <Activity className="h-4 w-4 text-warning" />,
+  rejected: <AlertTriangle className="h-4 w-4 text-danger" />
 };
 
 const VerificationCard = ({ address, status, verificationType, timestamp }: VerificationCardProps) => (
-  <Card className="max-w-full">
-    <Flex justifyContent="between" alignItems="center">
+  <div className="card p-4 hover-scale transition-all">
+    <div className="flex justify-between items-center">
       <div>
-        <Text className="font-medium">Address</Text>
-        <Text className="text-gray-500 truncate max-w-xs">{address}</Text>
+        <p className="text-sm font-medium text-text-secondary">Address</p>
+        <p className="text-text-primary truncate max-w-xs font-mono text-sm">{address}</p>
       </div>
       <div className={`px-3 py-1 rounded-full ${statusColors[status]}`}>
-        <Flex alignItems="center" justifyContent="center">
-          <span className="mr-2">{statusIcons[status]}</span>
-          <Text className="capitalize">{status}</Text>
-        </Flex>
+        <div className="flex items-center justify-center">
+          <span className="mr-1.5">{statusIcons[status]}</span>
+          <span className="text-sm font-medium capitalize">{status}</span>
+        </div>
       </div>
-    </Flex>
-    <div className="mt-4">
-      <Flex justifyContent="between">
-        <div>
-          <Text className="text-sm text-gray-500">Verification Type</Text>
-          <Text>{verificationType}</Text>
-        </div>
-        <div>
-          <Text className="text-sm text-gray-500">Timestamp</Text>
-          <Text>{new Date(timestamp).toLocaleString()}</Text>
-        </div>
-      </Flex>
     </div>
-  </Card>
+    <div className="mt-4 pt-3 border-t border-text-tertiary/10">
+      <div className="flex justify-between">
+        <div>
+          <p className="text-xs text-text-tertiary">Verification Type</p>
+          <p className="text-sm font-medium">{verificationType}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-text-tertiary">Timestamp</p>
+          <p className="text-sm">{new Date(timestamp).toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  </div>
 );
 
 export default function VerificationList() {
@@ -84,8 +83,8 @@ export default function VerificationList() {
   return (
     <div className="space-y-6">
       <div>
-        <Title>Recent Verifications</Title>
-        <Text>Latest user verification activities</Text>
+        <h3 className="text-xl font-semibold mb-2">Recent Verifications</h3>
+        <p className="text-text-secondary">Latest user verification activities</p>
       </div>
       
       <div className="space-y-4">
@@ -98,6 +97,12 @@ export default function VerificationList() {
             timestamp={verification.timestamp}
           />
         ))}
+      </div>
+      
+      <div className="pt-2">
+        <button className="btn btn-secondary w-full">
+          View All Verifications
+        </button>
       </div>
     </div>
   );
