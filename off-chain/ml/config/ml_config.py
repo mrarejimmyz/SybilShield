@@ -12,12 +12,16 @@ from pathlib import Path
 base_path = Path(os.path.dirname(os.path.abspath(__file__))).parent
 data_path = os.path.join(base_path, "data")
 models_path = os.path.join(base_path, "models", "saved")
+model_path = models_path  # Alias for compatibility
 logs_path = os.path.join(base_path, "logs")
+training_path = os.path.join(base_path, "training")
 
 # Ensure directories exist
 os.makedirs(data_path, exist_ok=True)
 os.makedirs(models_path, exist_ok=True)
 os.makedirs(logs_path, exist_ok=True)
+os.makedirs(training_path, exist_ok=True)
+os.makedirs(os.path.join(training_path, "checkpoints"), exist_ok=True)
 
 # Aptos devnet configuration
 APTOS_DEVNET_URL = "https://fullnode.devnet.aptoslabs.com/v1"
@@ -44,6 +48,10 @@ MODEL_CONFIG = {
     "max_depth": 10,
     "feature_importance_threshold": 0.01,
 }
+
+# Additional model variables for compatibility
+random_seed = MODEL_CONFIG["random_state"]
+early_stopping_patience = 10
 
 # Sybil detection thresholds
 SYBIL_THRESHOLDS = {
